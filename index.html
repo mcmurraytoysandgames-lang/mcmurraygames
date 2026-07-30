@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>McMurray Games</title>
+<meta name="description" content="Board games you can hold. Browser games you can play right now. Designed and published by McMurray Games in St. Louis.">
+
+<meta property="og:title" content="McMurray Games">
+<meta property="og:description" content="Board games you can hold. Browser games you can play right now.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://mcmurraygames.com">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Karla:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --felt-deep:#123B29;
+  --felt-mid:#1A5238;
+  --rail:#40281A;
+  --rail-hi:#5C3B27;
+  --stock:#F1E8D5;
+  --ink:#17130E;
+  --brass:#C79A3E;
+
+  --display:"Bricolage Grotesque",system-ui,sans-serif;
+  --body:"Karla",system-ui,sans-serif;
+  --util:"Space Mono",ui-monospace,monospace;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+
+body{
+  margin:0;
+  font-family:var(--body);
+  color:var(--stock);
+  background-color:var(--felt-deep);
+  /* felt weave: two fine noise layers over a soft center glow */
+  background-image:
+    radial-gradient(ellipse at 50% 0%, var(--felt-mid) 0%, var(--felt-deep) 62%),
+    repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px);
+  background-attachment:fixed;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{width:min(1080px,92vw);margin-inline:auto;}
+
+/* ---- table rail ---- */
+.rail{
+  background:linear-gradient(180deg,var(--rail-hi),var(--rail));
+  border-bottom:2px solid var(--brass);
+  box-shadow:0 6px 24px rgba(0,0,0,.45);
+  position:sticky;top:0;z-index:20;
+}
+.rail .wrap{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:1rem;padding:.85rem 0;flex-wrap:wrap;
+}
+.wordmark{
+  font-family:var(--display);font-weight:800;font-size:1.15rem;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--stock);
+  text-decoration:none;
+}
+.rail nav{display:flex;gap:1.4rem;}
+.rail nav a{
+  font-family:var(--util);font-size:.72rem;letter-spacing:.12em;
+  text-transform:uppercase;color:#E4D6B8;text-decoration:none;
+  padding-bottom:2px;border-bottom:1px solid transparent;
+}
+.rail nav a:hover,.rail nav a:focus-visible{border-bottom-color:var(--brass);color:#fff;}
+
+/* ---- hero ---- */
+.hero{padding:clamp(3.5rem,10vw,7rem) 0 clamp(2.5rem,6vw,4rem);}
+.eyebrow{
+  font-family:var(--util);font-size:.72rem;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--brass);margin:0 0 1.1rem;
+}
+.hero h1{
+  font-family:var(--display);font-weight:800;
+  font-size:clamp(2.4rem,6.4vw,4.6rem);line-height:1.02;
+  letter-spacing:-.02em;margin:0 0 1.2rem;max-width:16ch;
+}
+.hero h1 em{font-style:normal;color:var(--brass);}
+.hero p{font-size:clamp(1rem,1.9vw,1.2rem);max-width:52ch;margin:0 0 2rem;color:#DCD2BC;}
+
+.actions{display:flex;gap:.9rem;flex-wrap:wrap;}
+.btn{
+  font-family:var(--util);font-size:.78rem;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;text-decoration:none;
+  padding:.9rem 1.5rem;border-radius:3px;display:inline-block;
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+.btn-solid{background:var(--brass);color:var(--ink);box-shadow:0 4px 0 #8E6A22;}
+.btn-solid:hover,.btn-solid:focus-visible{transform:translateY(-2px);box-shadow:0 6px 0 #8E6A22;}
+.btn-ghost{border:1px solid rgba(241,232,213,.45);color:var(--stock);}
+.btn-ghost:hover,.btn-ghost:focus-visible{border-color:var(--brass);color:var(--brass);}
+
+/* ---- sections ---- */
+section{padding-block:clamp(2.5rem,6vw,4.5rem);}
+.head{
+  display:flex;align-items:baseline;gap:1rem;
+  border-bottom:1px solid rgba(199,154,62,.35);
+  padding-bottom:.7rem;margin-bottom:2.4rem;
+}
+.head h2{
+  font-family:var(--display);font-weight:600;font-size:clamp(1.4rem,3vw,2rem);
+  letter-spacing:.01em;margin:0;
+}
+.head span{font-family:var(--util);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);margin-left:auto;}
+
+/* ---- dealt cards: the signature ---- */
+.deal{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(230px,1fr));
+  gap:clamp(1.6rem,3vw,2.4rem);
+}
+.card{
+  background:var(--stock);color:var(--ink);
+  border-radius:9px;
+  padding:1.25rem 1.25rem 1.4rem;
+  text-decoration:none;display:flex;flex-direction:column;
+  min-height:265px;
+  box-shadow:0 10px 22px rgba(0,0,0,.4),0 1px 0 rgba(255,255,255,.35) inset;
+  transition:transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s ease;
+  will-change:transform;
+}
+/* each card lies on the table at its own angle */
+.deal .card:nth-child(4n+1){transform:rotate(-1.6deg);}
+.deal .card:nth-child(4n+2){transform:rotate(1.1deg);}
+.deal .card:nth-child(4n+3){transform:rotate(-.6deg);}
+.deal .card:nth-child(4n+4){transform:rotate(1.9deg);}
+.deal .card:hover,.deal .card:focus-visible{
+  transform:rotate(0deg) translateY(-10px);
+  box-shadow:0 20px 38px rgba(0,0,0,.5);
+}
+
+.stock{
+  font-family:var(--util);font-size:.63rem;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;
+  color:#6E6353;display:flex;justify-content:space-between;gap:.5rem;
+  border-bottom:1px solid rgba(23,19,14,.16);padding-bottom:.55rem;margin-bottom:.9rem;
+}
+.card h3{
+  font-family:var(--display);font-weight:800;
+  font-size:1.32rem;line-height:1.1;letter-spacing:-.01em;margin:0 0 .55rem;
+}
+.card p{font-size:.9rem;color:#413A30;margin:0 0 1.1rem;}
+.meta{
+  margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  font-family:var(--util);font-size:.72rem;letter-spacing:.08em;
+}
+.price{font-weight:700;color:var(--ink);}
+.cue{color:#8A6D2C;text-transform:uppercase;letter-spacing:.14em;font-size:.66rem;}
+.card:hover .cue,.card:focus-visible .cue{color:var(--ink);}
+
+/* ---- about + footer ---- */
+.about{
+  background:rgba(0,0,0,.2);
+  border-top:1px solid rgba(199,154,62,.25);
+  border-bottom:1px solid rgba(199,154,62,.25);
+}
+.about .wrap{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:2.4rem;}
+.about h2{font-family:var(--display);font-weight:600;font-size:1.5rem;margin:0 0 .8rem;}
+.about p{margin:0 0 1rem;color:#D5CBB5;font-size:.96rem;}
+.about a{color:var(--brass);}
+
+footer{padding:2.6rem 0 3.4rem;}
+footer .wrap{display:flex;justify-content:space-between;gap:1.2rem;flex-wrap:wrap;align-items:center;}
+footer p{font-family:var(--util);font-size:.7rem;letter-spacing:.1em;color:#9DAE9F;margin:0;text-transform:uppercase;}
+footer nav{display:flex;gap:1.3rem;}
+footer nav a{font-family:var(--util);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#C6BCA6;text-decoration:none;}
+footer nav a:hover,footer nav a:focus-visible{color:var(--brass);}
+
+/* ---- quality floor ---- */
+a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offset:4px;}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto;}
+  *{transition:none !important;}
+  .deal .card{transform:none !important;}
+  .deal .card:hover{transform:none !important;}
+}
+</style>
+</head>
+<body>
+
+<header class="rail">
+  <div class="wrap">
+    <a class="wordmark" href="/">McMurray Games</a>
+    <nav>
+      <a href="#play">Play</a>
+      <a href="#tabletop">Tabletop</a>
+      <a href="#studio">Studio</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <p class="eyebrow">St. Louis, Missouri</p>
+  <h1>Games you can <em>hold</em>. Games you can play <em>right now</em>.</h1>
+  <p>A one-person studio making print-and-play board games, card games, and browser games. Nothing to install. Nothing to sign up for.</p>
+  <div class="actions">
+    <a class="btn btn-solid" href="#play">Play something free</a>
+    <a class="btn btn-ghost" href="#tabletop">Browse the shelf</a>
+  </div>
+</div>
+
+<!-- ============ BROWSER GAMES ============
+     Drop each build in /play/<slug>/index.html and point the href there. -->
+<section id="play">
+  <div class="wrap">
+    <div class="head">
+      <h2>In the browser</h2>
+      <span>Free to play</span>
+    </div>
+
+    <div class="deal">
+
+      <a class="card" href="/play/lux/">
+        <div class="stock"><span>Arcade</span><span>1 player</span></div>
+        <h3>Lux the Moth</h3>
+        <p>Chase the light through a chalk-drawn night. Short, strange, and finished.</p>
+        <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
+      </a>
+
+      <a class="card" href="/play/last-light/">
+        <div class="stock"><span>Survival</span><span>1 player</span></div>
+        <h3>Last Light: Zombie Frenzy</h3>
+        <p>Hold the line through escalating waves. Full game, no paywall, no ads.</p>
+        <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
+      </a>
+
+      <a class="card" href="/play/aquarium/">
+        <div class="stock"><span>Simulation</span><span>Demo</span></div>
+        <h3>Aquarium Curator Simulator</h3>
+        <p>Stock the tanks, keep the fish alive, keep the visitors coming. Kickstarter demo build.</p>
+        <div class="meta"><span class="price">Free</span><span class="cue">Try the demo</span></div>
+      </a>
+
+      <a class="card" href="/play/corpse-road/">
+        <div class="stock"><span>Deduction</span><span>Co-op</span></div>
+        <h3>Corpse Road</h3>
+        <p>Digital playtest of the sensory-deprivation microgame. Carry the body. Trust the others.</p>
+        <div class="meta"><span class="price">Free</span><span class="cue">Playtest</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ TABLETOP ============
+     Physical copies: link to The Game Crafter.
+     Print-and-play PDFs: link to your Payhip product URL. -->
+<section id="tabletop">
+  <div class="wrap">
+    <div class="head">
+      <h2>On the table</h2>
+      <span>Print &amp; play + physical</span>
+    </div>
+
+    <div class="deal">
+
+      <a class="card" href="#REPLACE-WITH-PAYHIP-OR-TGC-URL">
+        <div class="stock"><span>Card game</span><span>2&ndash;4 players</span></div>
+        <h3>Six Feet of Dust</h3>
+        <p>An Old West bluffing game where the tuck box is the cemetery. Pyrography art throughout.</p>
+        <div class="meta"><span class="price">$0.00</span><span class="cue">Buy</span></div>
+      </a>
+
+      <a class="card" href="#REPLACE-WITH-PAYHIP-OR-TGC-URL">
+        <div class="stock"><span>Microgame</span><span>3&ndash;5 players</span></div>
+        <h3>Corpse Road</h3>
+        <p>Cooperative deduction in the dark. One of you cannot see. One of you should not be trusted.</p>
+        <div class="meta"><span class="price">$0.00</span><span class="cue">Buy</span></div>
+      </a>
+
+      <a class="card" href="#REPLACE-WITH-PAYHIP-OR-TGC-URL">
+        <div class="stock"><span>Euro</span><span>1&ndash;4 players</span></div>
+        <h3>Mycelium</h3>
+        <p>Hex-tile network building beneath the forest floor. Heavy, quiet, and slow to bloom.</p>
+        <div class="meta"><span class="price">$0.00</span><span class="cue">Buy</span></div>
+      </a>
+
+      <a class="card" href="#REPLACE-WITH-PAYHIP-OR-TGC-URL">
+        <div class="stock"><span>Engine builder</span><span>Mint tin</span></div>
+        <h3>Kitbash</h3>
+        <p>Bolt spare parts into something that runs. Fits in a tin, plays bigger than it looks.</p>
+        <div class="meta"><span class="price">$0.00</span><span class="cue">Buy</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<section class="about" id="studio">
+  <div class="wrap">
+    <div>
+      <h2>About the studio</h2>
+      <p>McMurray Games is Joshua McMurray, designing tabletop and browser games out of St. Louis. Physical games print through The Game Crafter. Digital files deliver instantly after checkout.</p>
+    </div>
+    <div>
+      <h2>Get in touch</h2>
+      <p>Playtest reports, retail questions, or freelance work, all go to the same place.</p>
+      <p><a href="mailto:contact@mcmurraygames.com">contact@mcmurraygames.com</a></p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>&copy; 2026 McMurray Games</p>
+    <nav>
+      <a href="#REPLACE-ITCH-URL">itch.io</a>
+      <a href="#REPLACE-TGC-URL">The Game Crafter</a>
+      <a href="mailto:contact@mcmurraygames.com">Email</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
