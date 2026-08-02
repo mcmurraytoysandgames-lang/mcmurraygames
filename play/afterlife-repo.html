@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Afterlife Repo</title>
+<style>
+  :root{
+    --night:#0c0f18;
+    --plaster:#2b3146;
+    --plaster-lit:#404763;
+    --wood:#4b3a2c;
+    --wood-lit:#70563d;
+    --lamp:#ffc65c;
+    --bone:#e9e4d6;
+    --ink:#c8392b;
+    --ghost:#79d3c6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#05060a;overflow:hidden;
+    font-family:"Courier New",Courier,monospace;color:var(--bone);
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  #stage{position:fixed;inset:0;display:grid;place-items:center}
+  #wrap{position:relative;width:min(100vw,calc(100vh*1.6));aspect-ratio:16/10}
+  canvas{width:100%;height:100%;display:block;background:var(--night);
+    box-shadow:0 0 0 1px #1b2030, 0 24px 80px rgba(0,0,0,.8)}
+  .screen{position:absolute;inset:0;display:grid;place-items:center;
+    background:
+      repeating-linear-gradient(0deg,rgba(233,228,214,.022) 0 1px,transparent 1px 16px),
+      rgba(6,8,14,.9);
+    backdrop-filter:blur(2px);text-align:center;padding:6%}
+  .screen.hidden{display:none}
+  .card{max-width:640px}
+  h1{font-family:"Courier New",Courier,monospace;font-weight:700;
+    letter-spacing:.3em;text-transform:uppercase;
+    font-size:clamp(20px,3.6vw,34px);color:var(--bone);margin-bottom:.15em}
+  #title h1{display:inline-block;padding:16px 30px 14px;margin-bottom:4px;
+    border:3px solid var(--ink);box-shadow:inset 0 0 0 4px var(--night),inset 0 0 0 5px var(--ink);
+    transform:rotate(-1.1deg);letter-spacing:.24em;line-height:1.3}
+  #title h1 span{display:block;color:var(--lamp);font-size:.5em;
+    letter-spacing:.34em;margin-top:8px;font-weight:400}
+  .rule{height:2px;background:var(--ink);margin:14px auto 18px;width:70%}
+  .sub{font-size:clamp(11px,1.5vw,15px);line-height:1.75;opacity:.8}
+  .keys{margin:22px auto 0;font-size:clamp(10px,1.35vw,13px);line-height:2;opacity:.7}
+  .keys b{color:var(--lamp);font-weight:400}
+  .go{margin-top:26px;font-size:clamp(11px,1.6vw,15px);color:var(--lamp);
+    letter-spacing:.2em;animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.go{animation:none}}
+  .eyebrow{font-size:clamp(9px,1.2vw,12px);letter-spacing:.32em;color:var(--ink);margin-bottom:10px}
+  .roster{margin-top:20px;font-size:clamp(10px,1.35vw,13px);line-height:2;opacity:.85}
+  .roster b{color:var(--lamp);font-weight:400}
+  #touch{position:absolute;inset:0;display:none;pointer-events:none}
+  #touch.on{display:block}
+  .pad{position:absolute;bottom:4%;width:19%;padding-top:19%;border-radius:50%;
+    border:2px solid rgba(233,228,214,.3);background:rgba(233,228,214,.09);
+    pointer-events:auto;display:grid;place-items:center;
+    -webkit-tap-highlight-color:transparent}
+  .pad:active{background:rgba(255,198,92,.22);border-color:var(--lamp)}
+  .pad span{position:absolute;font-size:min(5.5vw,26px);opacity:.8;
+    font-family:"Courier New",monospace;letter-spacing:.06em}
+  #tl{left:2%}#tr{left:23%}
+  #tj{right:2%;bottom:4%}#tg{right:23%;bottom:4%;background:rgba(255,198,92,.12);
+    border-color:rgba(255,198,92,.4)}
+  #tp{position:absolute;top:3%;right:3%;width:11%;padding-top:11%;border-radius:8px;
+    border:2px solid rgba(233,228,214,.24);background:rgba(233,228,214,.07);
+    pointer-events:auto;display:grid;place-items:center}
+  #tp span{position:absolute;font-size:min(3.4vw,16px);opacity:.7;
+    font-family:"Courier New",monospace}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap">
+  <canvas id="c" width="960" height="600"></canvas>
+
+  <div class="screen" id="title">
+    <div class="card">
+      <p class="eyebrow">MCMURRAY RECOVERY SERVICES</p>
+      <h1>AFTERLIFE REPO<span>FURNITURE RECOVERY, NIGHT SHIFT</span></h1>
+      <div class="rule"></div>
+      <p class="sub">
+        Six estates in default. Every owner is dead. None of them have moved out.<br>
+        Four pieces of furniture per house. Carry each one out to the van.<br><br>
+        Everything you pick up changes how you move. The walk in is easy.
+        The walk out is the job.
+      </p>
+      <div class="keys">
+        <b>A D</b> or <b>&#8592; &#8594;</b> &nbsp; walk &nbsp;&nbsp;&nbsp;
+        <b>W</b> / <b>&#8593;</b> / <b>SPACE</b> &nbsp; jump<br>
+        <b>E</b> &nbsp; lift and set down<br>
+        <b>R</b> &nbsp; start the house over &nbsp;&nbsp;&nbsp;
+        <b>P</b> &nbsp; pause &nbsp;&nbsp;&nbsp;
+        <b>M</b> &nbsp; mute
+      </div>
+      <p class="go">PRESS ANY KEY TO CLOCK IN</p>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="win">
+    <div class="card">
+      <h1>PAID IN FULL</h1>
+      <div class="rule"></div>
+      <p class="sub" id="winText"></p>
+      <p class="go">PRESS R TO RUN IT AGAIN</p>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="pause">
+    <div class="card">
+      <p class="eyebrow">SHIFT SUSPENDED</p>
+      <h1>SMOKE BREAK</h1>
+      <div class="rule"></div>
+      <p class="sub">The house waits. It is good at waiting.</p>
+      <p class="go">PRESS P TO GET BACK TO WORK</p>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="lost">
+    <div class="card">
+      <p class="eyebrow">SHIFT OVER</p>
+      <h1>SUNRISE</h1>
+      <div class="rule"></div>
+      <p class="sub" id="lostText"></p>
+      <p class="go">PRESS R TO WORK THE HOUSE AGAIN</p>
+    </div>
+  </div>
+
+  <div id="touch">
+    <div class="pad" id="tl"><span>&#8592;</span></div>
+    <div class="pad" id="tr"><span>&#8594;</span></div>
+    <div class="pad" id="tj"><span>&#9650;</span></div>
+    <div class="pad" id="tg"><span>LIFT</span></div>
+    <div id="tp"><span>II</span></div>
+  </div>
+</div></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   AFTERLIFE REPO
+   Everything you can tune lives in CONFIG and ITEM_DEFS.
+   ============================================================ */
+
+const TILE = 24, COLS = 40, ROWS = 25;
+const W = COLS * TILE, H = ROWS * TILE;
+
+/* ============================================================
+   SOUND - all synthesized, no audio files.
+   The soundtrack is an oom-pah-pah waltz in D minor. A repo man
+   deserves a waltz. Carry the grandfather clock and it drags.
+   ============================================================ */
+const SND = (function(){
+  let ctx=null, master, musicBus, tone_filter, noiseBuf;
+  let running=false, muted=false, step=0, nextTime=0, mood=null;
+  const S = { rate:1.0 };
+  const midi = m => 440 * Math.pow(2,(m-69)/12);
+
+  function ensure(){
+    if (ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    ctx = new AC();
+    master = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
+    tone_filter = ctx.createBiquadFilter();
+    tone_filter.type = "lowpass"; tone_filter.frequency.value = 6000;
+    tone_filter.connect(master);
+    musicBus = ctx.createGain(); musicBus.gain.value = 0.20; musicBus.connect(tone_filter);
+    const n = Math.floor(ctx.sampleRate * 1.2);
+    noiseBuf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  }
+  function tone(f, t, dur, type, gain, bus, slideTo){
+    if (!ctx) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(28, slideTo), t+dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(bus || master);
+    o.start(t); o.stop(t+dur+0.05);
+  }
+  function noise(t, dur, gain, cut, sweepTo){
+    if (!ctx) return;
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass";
+    f.frequency.setValueAtTime(cut, t);
+    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t+dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(t); s.stop(t+dur);
+  }
+
+  /* Dm  Dm  Gm  Gm  A7  A7  Dm  A7 */
+  const CHORDS = [[50,[57,62,65]],[50,[57,62,65]],[43,[55,58,62]],[43,[55,58,62]],
+                  [45,[57,61,64]],[45,[57,61,64]],[50,[57,62,65]],[45,[57,61,64]]];
+  const TUNE = [[74,77,81],[79,77,74],[70,74,79],[77,74,70],
+                [69,73,76],[79,76,73],[74,69,74],[73,76,69]];
+
+  function pump(){
+    if (!running || !ctx) return;
+    const beat = (60/132) / S.rate;
+    while (nextTime < ctx.currentTime + 0.3){
+      const bar = Math.floor(step/3) % 8, b = step % 3;
+      const ch = CHORDS[bar];
+      if (b === 0){
+        tone(midi(ch[0]-12), nextTime, beat*0.85, "triangle", 0.45, musicBus);
+        noise(nextTime, 0.045, 0.05, 900);
+      } else {
+        for (const c of ch[1]) tone(midi(c), nextTime, beat*0.32, "square", 0.05, musicBus);
+      }
+      const mel = TUNE[bar][b];
+      tone(midi(mel), nextTime+0.01, beat*0.75, "triangle", 0.15, musicBus);
+      tone(midi(mel+12), nextTime+0.01, beat*0.35, "sine", 0.045, musicBus);
+      if (bar === 7 && b === 2) tone(midi(38), nextTime, beat*2, "sawtooth", 0.05, musicBus, midi(37));
+      nextTime += beat; step++;
+    }
+  }
+
+  return {
+    start(){
+      ensure(); if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+      if (!running){ running = true; nextTime = ctx.currentTime + 0.1; setInterval(pump, 40); }
+    },
+    setMood(slow){
+      if (!ctx || mood === slow) return;
+      mood = slow; S.rate = slow ? 0.62 : 1.0;
+      tone_filter.frequency.setTargetAtTime(slow ? 800 : 6000, ctx.currentTime, 0.12);
+    },
+    toggleMute(){
+      if (!ctx) return false;
+      muted = !muted;
+      master.gain.setTargetAtTime(muted ? 0 : 0.85, ctx.currentTime, 0.04);
+      return muted;
+    },
+    isMuted(){ return muted; },
+    jump(){ if(ctx) tone(300, ctx.currentTime, 0.11, "square", 0.14, null, 560); },
+    flap(){ if(ctx) { const t=ctx.currentTime; tone(520,t,0.09,"square",0.11,null,880); noise(t,0.08,0.06,2400); } },
+    land(){ if(ctx) noise(ctx.currentTime, 0.09, 0.13, 500, 160); },
+    lift(){ if(!ctx) return; const t=ctx.currentTime;
+      tone(523,t,0.09,"triangle",0.18); tone(784,t+0.07,0.14,"triangle",0.14); },
+    put(){ if(!ctx) return; tone(190, ctx.currentTime, 0.14, "sine", 0.2, null, 90);
+      noise(ctx.currentTime, 0.1, 0.11, 400); },
+    crack(){ if(ctx) noise(ctx.currentTime, 0.45, 0.28, 2400, 110); },
+    creak(){ if(ctx) tone(70, ctx.currentTime, 0.3, "sawtooth", 0.05, null, 58); },
+    scare(){ if(!ctx) return; const t=ctx.currentTime;
+      tone(430,t,0.55,"sawtooth",0.18,null,80); noise(t,0.5,0.14,1800,200); },
+    stamp(){ if(!ctx) return; const t=ctx.currentTime; noise(t,0.12,0.26,700);
+      [62,66,69,74].forEach((n,i)=>tone(midi(n), t+0.03+i*0.05, 0.32, "triangle", 0.15)); },
+    tock(){ if(ctx) tone(1150, ctx.currentTime, 0.04, "square", 0.08); },
+    fanfare(){ if(!ctx) return; const t=ctx.currentTime;
+      [62,65,69,74,77,81].forEach((n,i)=>tone(midi(n), t+i*0.085, 0.5, "triangle", 0.16)); }
+  };
+})();
+
+const CONFIG = {
+  coyote: 6,        // frames of grace after leaving a ledge
+  buffer: 6,        // frames a jump press stays queued
+  maxFall: 12,
+  breakFrames: 22,  // how long a heavy item stands on cracked wood before it goes
+  pickupRange: 40,
+  warnAt: 20,       // seconds left when the ticking starts
+  hurtFrames: 48,   // how long a scare keeps you from grabbing anything
+  slowWorld: 0.32   // world speed while the grandfather clock is in your arms
+};
+
+/* Empty-handed movement. Every item below overrides part of this. */
+const BASE = { acc:0.9, maxRun:3.4, fric:0.78, grav:0.62, jump:-10.2, maxFall:12, gravDir:1 };
+
+const ITEM_DEFS = {
+  chandelier: {
+    label:"CROWN CHANDELIER", weight:"14 LB", trait:"Light as a held breath. You drift.",
+    w:28, h:18,
+    mod:{ acc:0.55, maxRun:3.0, fric:0.86, grav:0.30, jump:-8.6, maxFall:4.2, gravDir:1 }
+  },
+  rug: {
+    label:"PERSIAN RUNNER", weight:"38 LB", trait:"No traction. You slide.",
+    w:32, h:12,
+    mod:{ acc:0.34, maxRun:5.0, fric:0.968, grav:0.62, jump:-9.6, maxFall:12, gravDir:1 }
+  },
+  wardrobe: {
+    label:"OAK WARDROBE", weight:"310 LB", trait:"Dead weight. Old floors give.",
+    w:26, h:38, breaks:true,
+    mod:{ acc:0.5, maxRun:1.6, fric:0.6, grav:0.9, jump:-7.6, maxFall:14, gravDir:1 }
+  },
+  mirror: {
+    label:"STANDING MIRROR", weight:"90 LB", trait:"Gravity reads backwards.",
+    w:16, h:30,
+    mod:{ acc:0.8, maxRun:3.6, fric:0.8, grav:0.62, jump:-9.6, maxFall:12, gravDir:-1 }
+  },
+  piano: {
+    label:"UPRIGHT PIANO", weight:"920 LB", trait:"It does not go up. Ever.",
+    w:34, h:30, breaks:true,
+    mod:{ acc:0.42, maxRun:1.4, fric:0.55, grav:1.0, jump:-3.4, maxFall:15, gravDir:1 }
+  },
+  clock: {
+    label:"GRANDFATHER CLOCK", weight:"180 LB", trait:"The house forgets to hurry.",
+    w:20, h:40, slowsWorld:true,
+    mod:{ acc:0.7, maxRun:2.4, fric:0.78, grav:0.62, jump:-9.0, maxFall:12, gravDir:1 }
+  },
+  birdcage: {
+    label:"BRASS BIRDCAGE", weight:"22 LB", trait:"Something inside still flies.",
+    w:20, h:26, doubleJump:true,
+    mod:{ acc:0.85, maxRun:3.2, fric:0.8, grav:0.62, jump:-9.6, maxFall:12, gravDir:1 }
+  }
+};
+
+/* weight drives the camera sag and how far a landing carries */
+for (const id in ITEM_DEFS) ITEM_DEFS[id].lb = parseInt(ITEM_DEFS[id].weight, 10);
+
+/* ---------- the houses ---------------------------------------
+   #  wall or floor     x  cracked wood      V  the door and van
+   P  repo agent start
+   1 rug   2 wardrobe   3 mirror   4 chandelier
+   5 birdcage   6 piano   7 grandfather clock
+   ghosts: c0 and c1 are the columns they drift between, r the row
+--------------------------------------------------------------- */
+const LEVELS = [
+{
+  name:"THE HALLOWAY ESTATE", acct:"ACCT 4417", time:160,
+  note:"Four pieces. The widow signed the papers herself.",
+  demand:"LEARN THE CARRY RULE. EVERY PIECE MOVES YOU DIFFERENTLY.",
+  ghosts:[ {c0:8,c1:24,r:16,spd:0.7}, {c0:24,c1:37,r:10,spd:0.9} ],
+  map:[
+"########################################",
+"#......................................#",
+"#......................................#",
+"#.........####.........####............#",
+"#......................................#",
+"#................................4.....#",
+"#######....###########....##############",
+"#......................................#",
+"#......................................#",
+"#....####..........####................#",
+"#......................................#",
+"#............................1.........#",
+"######....########....##################",
+"#......................................#",
+"#......................................#",
+"#....####.........####....#............#",
+"#VVV......................#............#",
+"#VVV....P.................#........2...#",
+"####....########...##########xxxxx######",
+"#...#..................................#",
+"#...##.................................#",
+"#...###................................#",
+"#...####...............................#",
+"#...#####.........................3....#",
+"########################################"
+]},
+{
+  name:"THE VESTRY HOUSE", acct:"ACCT 5109", time:180,
+  note:"The van waits in the cellar. Everything has to come down.",
+  demand:"CRACKED FLOOR ROUTING. BREAK THROUGH AND RIDE IT DOWN.",
+  ghosts:[ {c0:14,c1:27,r:16,spd:0.9}, {c0:6,c1:25,r:21,spd:1.1},
+           {c0:20,c1:37,r:4,spd:0.8,t:"stalk"} ],
+  map:[
+"########################################",
+"#......................................#",
+"#.................#....................#",
+"#.................#........####........#",
+"#.................#....................#",
+"#.................#..............5.....#",
+"#....#################....##############",
+"#......................................#",
+"#......................................#",
+"#.....................####.............#",
+"#......................................#",
+"#.............................4........#",
+"#####....#############....##############",
+"#......................................#",
+"#......................................#",
+"#....####.............####.............#",
+"#......................................#",
+"#...................P............6.....#",
+"##########....##############xxxxxx######",
+"#..............##......................#",
+"#......................................#",
+"#......................................#",
+"#VVV...................................#",
+"#VVV......................3............#",
+"########################################"
+]},
+{
+  name:"ASHGRAVE HALL", acct:"ACCT 6620", time:215,
+  note:"Nobody defaults on Ashgrave. Ashgrave defaults on you.",
+  demand:"WALLS YOU CANNOT JUMP. TAKE THE LONG WAY UNDER THEM.",
+  ghosts:[ {c0:4,c1:21,r:16,spd:1.0}, {c0:25,c1:35,r:16,spd:1.1},
+           {c0:11,c1:28,r:22,spd:1.2,t:"stalk"}, {c0:13,c1:25,r:10,spd:1.0},
+           {c0:1,c1:12,r:4,spd:0.9} ],
+  map:[
+"########################################",
+"#......................................#",
+"#......................................#",
+"#.......####..............####.........#",
+"#......................................#",
+"#.....1................................#",
+"########....##############....##########",
+"#......................................#",
+"#......................................#",
+"#.......####..............####.........#",
+"#......................................#",
+"#...................7..................#",
+"########....##############....##########",
+"#......................................#",
+"#......................................#",
+"#.......####..............####.........#",
+"#.......................#...........VVV#",
+"#.........2.......P.....#...........VVV#",
+"#...########xxxxx#############....######",
+"#................................#.....#",
+"#........#......................##.....#",
+"#........#.....................###.....#",
+"#........#....................####.....#",
+"#...5....#...................#####.....#",
+"########################################"
+]},
+{
+  name:"THE ORRERY", acct:"ACCT 7302", time:195,
+  note:"The van is parked in the attic. Everything in this house goes up.",
+  demand:"REVERSE GRAVITY. THE MIRROR IS THE ONLY THING THAT FALLS UP.",
+  ghosts:[ {c0:8,c1:34,r:4,spd:0.9}, {c0:14,c1:28,r:10,spd:1.0,t:"watch"},
+           {c0:12,c1:29,r:16,spd:1.0}, {c0:18,c1:34,r:22,spd:1.1} ],
+  map:[
+"########################################",
+"#......................................#",
+"#......................................#",
+"#.........####.........................#",
+"#..................................VVV.#",
+"#..................................VVV.#",
+"#...######....##################...#####",
+"#......................................#",
+"####...................................#",
+"#.........####.........................#",
+"#...###................................#",
+"#......................................#",
+"#......###....##################...#####",
+"#......................................#",
+"#...###................................#",
+"#.........####.........................#",
+"####...................................#",
+"#.......P...4..............1...........#",
+"##############...###############...#####",
+"#......................................#",
+"#...............###....................#",
+"#......................................#",
+"#............###.......................#",
+"#...................5.............3....#",
+"########################################"
+]},
+{
+  name:"THE MOTH HOUSE", acct:"ACCT 7781", time:205,
+  note:"Nothing light in the inventory. Every step you take, they hear.",
+  demand:"NOISE DISCIPLINE. A HEAVY LANDING TELLS THEM WHERE YOU ARE.",
+  ghosts:[ {c0:12,c1:34,r:16,spd:1.0,t:"stalk"}, {c0:6,c1:30,r:22,spd:1.1},
+           {c0:8,c1:30,r:10,spd:1.0,t:"stalk"}, {c0:6,c1:32,r:4,spd:0.9},
+           {c0:2,c1:12,r:16,spd:1.2}, {c0:20,c1:36,r:20,spd:1.1} ],
+  map:[
+"########################################",
+"#......................................#",
+"#......................................#",
+"#.....####..................####.......#",
+"#......................................#",
+"#.................................7....#",
+"######....##################....########",
+"#......................................#",
+"#......................................#",
+"#.....####..................####.......#",
+"#......................................#",
+"#......................................#",
+"######....##################....########",
+"#......................................#",
+"#......................................#",
+"#.....####..................####.......#",
+"#.................VVV..................#",
+"#.............P...VVV.............3.6..#",
+"##xxxxx#...#############################",
+"#.........#............................#",
+"#.........##...........................#",
+"#.........###..........................#",
+"#.........####.........................#",
+"#.........#####..............2.........#",
+"########################################"
+]},
+{
+  name:"HOLLOWMAS HALL", acct:"ACCT 8000", time:215,
+  note:"Last account of the night. The van waits in the cellar.",
+  demand:"ALL OF IT AT ONCE. MIND THE HOLE YOU MAKE.",
+  ghosts:[ {c0:8,c1:26,r:16,spd:1.1,t:"watch"}, {c0:6,c1:30,r:22,spd:1.2,t:"stalk"},
+           {c0:12,c1:25,r:10,spd:1.0}, {c0:4,c1:28,r:4,spd:1.0},
+           {c0:22,c1:36,r:20,spd:1.1,t:"watch"}, {c0:28,c1:37,r:16,spd:1.2} ],
+  map:[
+"########################################",
+"#......................................#",
+"#......................................#",
+"#.......####..............####..#......#",
+"#...............................#......#",
+"#...1...........................#..5...#",
+"########....##############....##########",
+"#......................................#",
+"#......................................#",
+"#.......####..............####.........#",
+"#......................................#",
+"#......................................#",
+"########....##############....##########",
+"#......................................#",
+"#......................................#",
+"#.......####..............####.........#",
+"#......................................#",
+"#...................P.........6........#",
+"####....####################xxxx########",
+"#.......................##.............#",
+"#......................................#",
+"#......................................#",
+"#.................VVV..................#",
+"#.................VVV.............3....#",
+"########################################"
+]}
+];
+
+function normalize(row){
+  let r = (row + "..........................................").slice(0, COLS).split("");
+  r[0] = "#"; r[COLS-1] = "#";
+  return r;
+}
+
+const SPAWN_CHARS = { rug:"1", wardrobe:"2", mirror:"3", chandelier:"4",
+                      birdcage:"5", piano:"6", clock:"7" };
+
+let grid, items, player, van, particles, ghosts, wisps, frame, state;
+let levelIndex = 0, level, timeLeft = 0, lastSecond = -1, runStart = 0;
+let shake = 0, msg = null, msgT = 0, msgColor = "#e9e4d6", scares = 0, nearItem = null;
+let houseScares = 0, entryT = 0, closeStats = null, uiScale = 1;
+
+/* best times survive a reload where storage is allowed, and shrug where it is not */
+function bestFor(i){
+  try { const v = localStorage.getItem("afterlife-repo-best-" + i); return v ? parseFloat(v) : null; }
+  catch (e) { return null; }
+}
+function saveBest(i, secs){
+  try { localStorage.setItem("afterlife-repo-best-" + i, secs.toFixed(1)); } catch (e) {}
+}
+
+function flash(text, color){ msg = text; msgColor = color || "#e9e4d6"; msgT = 110; }
+
+function buildLevel(idx){
+  levelIndex = idx;
+  level = LEVELS[idx];
+  grid = level.map.map(normalize);
+  items = []; particles = []; ghosts = []; wisps = [];
+  frame = 0; shake = 0;
+  timeLeft = level.time; lastSecond = -1;
+  houseScares = 0; entryT = 320;
+
+  let px = 6*TILE, py = 17*TILE;
+  const vc = [];
+
+  for (let cy=0; cy<ROWS; cy++){
+    for (let cx=0; cx<COLS; cx++){
+      const ch = grid[cy][cx];
+      if (ch === "P"){ px = cx*TILE + 4; py = cy*TILE + 3; grid[cy][cx] = "."; }
+      else if (ch === "V"){ vc.push([cx,cy]); grid[cy][cx] = "."; }
+      else {
+        for (const id in SPAWN_CHARS){
+          if (ch === SPAWN_CHARS[id]){
+            const d = ITEM_DEFS[id];
+            items.push({
+              id, x:cx*TILE + (TILE-d.w)/2, y:(cy+1)*TILE - d.h,
+              w:d.w, h:d.h, vx:0, vy:0, held:false, delivered:false
+            });
+            grid[cy][cx] = ".";
+          }
+        }
+      }
+    }
+  }
+
+  /* the van is the bounding box of every V tile */
+  let x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  for (const [cx,cy] of vc){
+    x0=Math.min(x0,cx*TILE); y0=Math.min(y0,cy*TILE);
+    x1=Math.max(x1,(cx+1)*TILE); y1=Math.max(y1,(cy+1)*TILE);
+  }
+  van = { x:x0, y:y0, w:x1-x0, h:y1-y0 };
+
+  player = { x:px, y:py, w:15, h:21, vx:0, vy:0, face:1, grounded:false,
+             coyote:0, buffer:0, item:null, breakT:0, flip:1, anim:0,
+             jumps:0, hurt:0 };
+
+  for (const g of level.ghosts){
+    const kind = g.t || "drift";
+    ghosts.push({ x:(kind === "watch" ? (g.c0+g.c1)/2 : g.c0)*TILE, y:g.r*TILE,
+                  w:kind === "watch" ? 24 : 20, h:kind === "watch" ? 28 : 24,
+                  c0:g.c0*TILE, c1:g.c1*TILE, baseY:g.r*TILE,
+                  spd:g.spd, dir:1, t:Math.random()*6, lure:0, lureX:0,
+                  kind, lunge:0, home:((g.c0+g.c1)/2)*TILE });
+  }
+  for (let i=0;i<5;i++) wisps.push({ x:Math.random()*W, y:Math.random()*H, t:Math.random()*6 });
+}
+
+/* ---------- tiles + collision ---------- */
+function tileAt(cx, cy){
+  if (cx<0 || cy<0 || cx>=COLS || cy>=ROWS) return "#";
+  return grid[cy][cx];
+}
+function solid(cx, cy){ const t = tileAt(cx,cy); return t === "#" || t === "x"; }
+
+function moveX(e){
+  e.x += e.vx;
+  const y0 = Math.floor(e.y/TILE), y1 = Math.floor((e.y+e.h-0.01)/TILE);
+  if (e.vx > 0){
+    const cx = Math.floor((e.x+e.w-0.01)/TILE);
+    for (let cy=y0; cy<=y1; cy++) if (solid(cx,cy)){ e.x = cx*TILE - e.w - 0.01; e.vx = 0; break; }
+  } else if (e.vx < 0){
+    const cx = Math.floor(e.x/TILE);
+    for (let cy=y0; cy<=y1; cy++) if (solid(cx,cy)){ e.x = (cx+1)*TILE + 0.01; e.vx = 0; break; }
+  }
+}
+function moveY(e){
+  e.y += e.vy;
+  const x0 = Math.floor(e.x/TILE), x1 = Math.floor((e.x+e.w-0.01)/TILE);
+  let hit = 0;
+  if (e.vy > 0){
+    const cy = Math.floor((e.y+e.h-0.01)/TILE);
+    for (let cx=x0; cx<=x1; cx++) if (solid(cx,cy)){ e.y = cy*TILE - e.h - 0.01; e.vy = 0; hit = 1; break; }
+  } else if (e.vy < 0){
+    const cy = Math.floor(e.y/TILE);
+    for (let cx=x0; cx<=x1; cx++) if (solid(cx,cy)){ e.y = (cy+1)*TILE + 0.01; e.vy = 0; hit = -1; break; }
+  }
+  return hit;
+}
+
+/* ---------- input ---------- */
+const keys = {};
+const pressed = {};
+function clockIn(){
+  SND.start();
+  if (state === "title"){
+    state = "map"; runStart = performance.now(); scares = 0; levelIndex = 0;
+    document.getElementById("title").classList.add("hidden");
+    clearPressed();   // the key that clocked you in does not also jump you
+  }
+}
+function releaseAll(){
+  for (const k in keys) keys[k] = false;
+  clearPressed();
+}
+addEventListener("blur", releaseAll);
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); });
+addEventListener("keydown", e => {
+  if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(e.key)) e.preventDefault();
+  const k = e.key.toLowerCase();
+  if (!keys[k]) pressed[k] = true;
+  keys[k] = true;
+  if (k === "m"){ const m = SND.toggleMute(); flash(m ? "SOUND OFF" : "SOUND ON", "#79d3c6"); }
+  if ((k === "p" || k === "escape") && (state === "play" || state === "paused")) togglePause();
+  clockIn();
+});
+addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+
+function bindPad(id, key){
+  const el = document.getElementById(id);
+  const down = e => { e.preventDefault(); if (!keys[key]) pressed[key] = true; keys[key] = true;
+    clockIn(); };
+  const up = e => { e.preventDefault(); keys[key] = false; };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointercancel", up);
+  el.addEventListener("pointerleave", up);
+}
+if (matchMedia("(pointer:coarse)").matches){
+  document.getElementById("touch").classList.add("on");
+  bindPad("tl","a"); bindPad("tr","d"); bindPad("tj","w"); bindPad("tg","e"); bindPad("tp","p");
+}
+
+const left  = () => keys["a"] || keys["arrowleft"];
+const right = () => keys["d"] || keys["arrowright"];
+const jumpHeld = () => keys["w"] || keys["arrowup"] || keys[" "];
+const jumpTap  = () => pressed["w"] || pressed["arrowup"] || pressed[" "];
+
+/* ---------- update ---------- */
+function update(){
+  frame++;
+  const def = player.item ? ITEM_DEFS[player.item.id] : null;
+  const m = def ? def.mod : BASE;
+  const gd = m.gravDir;
+  const slow = (def && def.slowsWorld) ? CONFIG.slowWorld : 1;
+  player.flip += (gd - player.flip) * 0.25;
+  SND.setMood(!!(def && def.slowsWorld));
+
+  timeLeft -= 1/60;
+  const whole = Math.ceil(timeLeft);
+  if (whole !== lastSecond){
+    lastSecond = whole;
+    if (timeLeft < CONFIG.warnAt && timeLeft > 0) SND.tock();
+  }
+  if (timeLeft <= 0){
+    SND.creak(); loseShift(); clearPressed(); return;
+  }
+  if (player.hurt > 0) player.hurt--;
+  if (shake > 0.2) shake *= 0.86; else shake = 0;
+
+  if (left())  { player.vx -= m.acc; player.face = -1; }
+  if (right()) { player.vx += m.acc; player.face =  1; }
+  if (!left() && !right()) player.vx *= m.fric;
+  player.vx = Math.max(-m.maxRun, Math.min(m.maxRun, player.vx));
+  if (Math.abs(player.vx) < 0.04) player.vx = 0;
+
+  if (jumpTap()) player.buffer = CONFIG.buffer;
+  if (player.buffer > 0) player.buffer--;
+  if (player.coyote > 0) player.coyote--;
+
+  if (player.buffer > 0 && player.coyote > 0){
+    player.vy = m.jump * gd;
+    player.buffer = 0; player.coyote = 0; player.grounded = false;
+    player.jumps = 1; SND.jump();
+    puff(player.x + player.w/2, player.y + (gd>0 ? player.h : 0), 5, "#8a90a8");
+  } else if (player.buffer > 0 && def && def.doubleJump && player.jumps === 1){
+    /* the bird still has one left in it */
+    player.vy = m.jump * 0.92 * gd;
+    player.buffer = 0; player.jumps = 2; SND.flap();
+    puff(player.x + player.w/2, player.y + player.h/2, 8, "#e0c068");
+  }
+  /* short hop when the jump is released early */
+  if (!jumpHeld() && player.vy * gd < 0) player.vy -= player.vy * 0.16;
+
+  player.vy += m.grav * gd;
+  const mf = m.maxFall;
+  player.vy = Math.max(-mf*1.4, Math.min(mf, player.vy));
+
+  moveX(player);
+  const hit = moveY(player);
+  const wasAirborne = !player.grounded;
+  player.grounded = (gd > 0 ? hit === 1 : hit === -1);
+  if (player.grounded){
+    player.coyote = CONFIG.coyote; player.jumps = 0;
+    if (wasAirborne){
+      SND.land();
+      /* heavy furniture landing is a noise, and noises carry */
+      if (def && def.lb >= 180){
+        SND.creak(); shake = Math.max(shake, 3);
+        makeNoise(player.x + player.w/2, player.y + player.h, 260);
+      }
+    }
+  }
+  player.anim += Math.abs(player.vx) * 0.14;
+
+  /* heavy furniture finds every weak board */
+  if (def && def.breaks && player.grounded){
+    const fy = Math.floor((player.y + player.h + 2) / TILE);
+    const c0 = Math.floor(player.x / TILE), c1 = Math.floor((player.x + player.w) / TILE);
+    let onCracked = false;
+    for (let cx=c0; cx<=c1; cx++) if (tileAt(cx, fy) === "x") onCracked = true;
+    if (onCracked){
+      player.breakT++;
+      if (player.breakT % 3 === 0) puff(player.x + player.w/2, player.y + player.h, 2, "#7a5c3c");
+      if (player.breakT === 1) SND.creak();
+      if (player.breakT > CONFIG.breakFrames){
+        SND.crack(); shake = 8;
+        makeNoise(player.x + player.w/2, player.y + player.h, 520);
+        for (let cx=c0-1; cx<=c1+1; cx++) if (tileAt(cx, fy) === "x"){
+          grid[fy][cx] = ".";
+          puff(cx*TILE + TILE/2, fy*TILE + TILE/2, 10, "#7a5c3c");
+        }
+        player.breakT = 0;
+      }
+    } else player.breakT = 0;
+  } else player.breakT = 0;
+
+  /* lift and set down */
+  /* what E would act on right now, recomputed every frame so the prompt cannot lie */
+  nearItem = null;
+  if (!player.item && player.hurt <= 0){
+    let bd = CONFIG.pickupRange;
+    for (const it of items){
+      if (it.delivered) continue;
+      const d = Math.hypot((it.x + it.w/2) - (player.x + player.w/2),
+                           (it.y + it.h/2) - (player.y + player.h/2));
+      if (d < bd){ bd = d; nearItem = it; }
+    }
+  }
+
+  if (pressed["e"] && player.hurt <= 0){
+    if (player.item){
+      const it = player.item;
+      it.held = false;
+      it.x = player.x + player.w/2 - it.w/2 + player.face * 10;
+      it.y = player.y + player.h - it.h;
+      it.vx = player.vx * 0.4; it.vy = 0;
+      player.item = null;
+      SND.put();
+    } else {
+      const best = nearItem;
+      if (best){
+        best.held = true; player.item = best; nearItem = null;
+        best.vx = 0; best.vy = 0;
+        player.jumps = player.grounded ? 0 : 1;
+        SND.lift();
+        flash(ITEM_DEFS[best.id].label + "  \u2022  " + ITEM_DEFS[best.id].trait, "#ffc65c");
+        puff(best.x+best.w/2, best.y+best.h/2, 8, "#ffc65c");
+      }
+    }
+  }
+
+  /* loose furniture falls like furniture */
+  for (const it of items){
+    if (it.held || it.delivered) continue;
+    it.vy = Math.min(12, it.vy + 0.62);
+    moveX(it);
+    const h2 = moveY(it);
+    if (h2 === 1) it.vx *= 0.7; else it.vx *= 0.99;
+    if (Math.abs(it.vx) < 0.05) it.vx = 0;
+  }
+
+  /* delivery */
+  for (const it of items){
+    if (it.delivered) continue;
+    const r = it.held ? { x:player.x, y:player.y, w:player.w, h:player.h } : it;
+    if (r.x < van.x + van.w && r.x + r.w > van.x && r.y < van.y + van.h && r.y + r.h > van.y){
+      it.delivered = true;
+      if (player.item === it) player.item = null;
+      SND.stamp(); flash("SEIZED \u2022 " + ITEM_DEFS[it.id].label, "#c8392b");
+      for (let i=0;i<26;i++) puff(van.x + Math.random()*van.w, van.y + Math.random()*van.h, 1, "#ffc65c");
+    }
+  }
+
+  /* ghosts walk their beat, ignore walls, and follow a noise */
+  for (const g of ghosts){
+    g.t += 0.05 * slow;
+    if (g.lure > 0){
+      g.lure -= slow;
+      const target = Math.max(g.c0, Math.min(g.c1, g.lureX));
+      g.dir = target > g.x ? 1 : -1;
+      g.x += g.dir * g.spd * 1.5 * slow;
+      if (Math.abs(target - g.x) < 4) g.x = target;
+    } else if (g.kind === "stalk"){
+      /* never patrols, only closes */
+      const target = Math.max(g.c0, Math.min(g.c1, player.x));
+      if (Math.abs(target - g.x) > 2){
+        g.dir = target > g.x ? 1 : -1;
+        g.x += g.dir * g.spd * 0.62 * slow;
+      }
+    } else if (g.kind === "watch"){
+      /* holds its spot until you get close, then lunges */
+      const dx = (player.x + player.w/2) - (g.x + g.w/2);
+      const dy = (player.y + player.h/2) - (g.y + g.h/2);
+      if (g.lunge > 0){
+        g.lunge -= slow;
+        g.x += (dx > 0 ? 1 : -1) * g.spd * 3.1 * slow;
+        g.dir = dx > 0 ? 1 : -1;
+      } else if (Math.abs(dx) < 175 && Math.abs(dy) < 46){
+        g.lunge = 36; SND.creak();
+        puff(g.x + g.w/2, g.y + g.h/2, 6, "#79d3c6");
+      } else if (Math.abs(g.home - g.x) > 3){
+        g.dir = g.home > g.x ? 1 : -1;
+        g.x += g.dir * g.spd * 0.5 * slow;
+      }
+    } else {
+      g.x += g.dir * g.spd * slow;
+    }
+    if (g.x <= g.c0){ g.x = g.c0; g.dir = 1; }
+    if (g.x >= g.c1){ g.x = g.c1; g.dir = -1; }
+    g.y = g.baseY + Math.sin(g.t*0.6) * 7;
+    if (player.hurt <= 0 &&
+        player.x < g.x + g.w && player.x + player.w > g.x &&
+        player.y < g.y + g.h && player.y + player.h > g.y){
+      const away = player.x < g.x ? -1 : 1;
+      player.hurt = CONFIG.hurtFrames;
+      shake = 11; SND.scare(); flash("COLD SPOT", "#79d3c6"); houseScares++;
+      if (player.item){
+        const it = player.item;
+        it.held = false;
+        it.x = player.x + player.w/2 - it.w/2;
+        it.y = player.y;
+        it.vx = away * 2.4; it.vy = -3.4;
+        player.item = null;
+      }
+      player.vx = away * 5.2;
+      player.vy = -4.2 * gd;
+      scares++;
+      puff(player.x + player.w/2, player.y + player.h/2, 14, "#79d3c6");
+    }
+  }
+  for (const w of wisps){
+    w.t += 0.012 * slow;
+    w.x += Math.cos(w.t*1.7) * 0.5 * slow;
+    w.y += Math.sin(w.t) * 0.35 * slow;
+  }
+  for (let i=particles.length-1; i>=0; i--){
+    const p = particles[i];
+    p.x += p.vx * slow; p.y += p.vy * slow; p.vy += 0.14 * slow; p.life -= slow;
+    if (p.life <= 0) particles.splice(i,1);
+  }
+  if (msgT > 0) msgT--;
+
+  if (items.every(i => i.delivered)){
+    SND.fanfare();
+    const used = level.time - timeLeft;
+    const prev = bestFor(levelIndex);
+    const beat = prev === null || used < prev;
+    if (beat) saveBest(levelIndex, used);
+    closeStats = { used, scares:houseScares, pieces:items.length,
+                   best: beat ? used : prev, newBest: beat && prev !== null,
+                   first: prev === null };
+    state = "closed";
+    clearPressed(); return;
+  }
+
+  if (pressed["r"]){ buildLevel(levelIndex); flash("PUT BACK", "#e9e4d6"); }
+  clearPressed();
+}
+
+function finishRoute(){
+  state = "win";
+  const secs = (performance.now() - runStart)/1000;
+  const [rank, line] = rankShift(secs);
+  document.getElementById("winText").innerHTML =
+    LEVELS.length + " estates emptied before sunrise. The van sits low on its springs."
+    + "<br><br>" + TOTAL_PIECES + " OF " + TOTAL_PIECES + " REMOVED"
+    + "<br>" + secs.toFixed(1) + " SECONDS &nbsp;&bull;&nbsp; " + scares + " COLD SPOTS WALKED INTO"
+    + "<br><br><span style=\"color:#ffc65c;letter-spacing:.2em\">" + rank + "</span>"
+    + "<br>" + line;
+  document.getElementById("win").classList.remove("hidden");
+}
+
+function clearPressed(){ for (const k in pressed) pressed[k] = false; }
+
+/* a loud noise drags every ghost in earshot toward it */
+function makeNoise(x, y, reach){
+  for (const g of ghosts){
+    if (Math.abs((g.x + g.w/2) - x) < reach && Math.abs((g.y + g.h/2) - y) < reach*0.8){
+      g.lure = 150; g.lureX = x - g.w/2;
+    }
+  }
+  for (let i=0;i<3;i++) puff(x, y, 2, "#8a90a8");
+}
+
+function togglePause(){
+  if (state === "play"){ state = "paused"; document.getElementById("pause").classList.remove("hidden"); }
+  else if (state === "paused"){ state = "play"; document.getElementById("pause").classList.add("hidden"); }
+  clearPressed();
+}
+
+function loseShift(){
+  state = "lost";
+  const got = items.filter(i => i.delivered).length;
+  document.getElementById("lostText").innerHTML =
+    "Sunrise caught you in " + level.name + " with " + got + " of " + items.length
+    + " on the van.<br><br>Everything still inside belongs to the house again.";
+  document.getElementById("lost").classList.remove("hidden");
+}
+
+function rankShift(secs){
+  const score = secs + scares * 15;
+  if (score < 620) return ["IRON CLIPBOARD", "Nothing touched you. Nothing slowed you down."];
+  if (score < 850) return ["SENIOR AGENT", "Clean paperwork, a few cold hands on your collar."];
+  if (score < 1150) return ["BONDED AND LICENSED", "The van is full. That is what the form asks."];
+  return ["STILL EMPLOYED", "Slow, haunted, and technically successful."];
+}
+
+function rosterOf(L){
+  const found = [];
+  for (const id in SPAWN_CHARS)
+    if (L.map.some(r => r.indexOf(SPAWN_CHARS[id]) !== -1)) found.push(ITEM_DEFS[id]);
+  return found;
+}
+const TOTAL_PIECES = LEVELS.reduce((n, L) => n + rosterOf(L).length, 0);
+
+function puff(x, y, n, color){
+  for (let i=0;i<n;i++) particles.push({
+    x, y, vx:(Math.random()-0.5)*2.4, vy:(Math.random()-0.7)*2.2,
+    life:18+Math.random()*22, size:1+Math.random()*2.2, color
+  });
+}
+
+/* ---------- render ---------- */
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+
+function drawHouse(){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#141827"); g.addColorStop(1,"#080a12");
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = "rgba(233,228,214,.022)";
+  for (let x=0; x<W; x+=14) ctx.fillRect(x,0,6,H);
+
+  ctx.strokeStyle = "rgba(233,228,214,.05)";
+  ctx.lineWidth = 1;
+  for (const r of [6,12,18,24]){ ctx.beginPath(); ctx.moveTo(0,r*TILE+0.5); ctx.lineTo(W,r*TILE+0.5); ctx.stroke(); }
+
+  for (let cy=0; cy<ROWS; cy++){
+    for (let cx=0; cx<COLS; cx++){
+      const t = grid[cy][cx];
+      if (t !== "#" && t !== "x") continue;
+      const x = cx*TILE, y = cy*TILE;
+      const openAbove = !solid(cx, cy-1);
+      if (t === "x"){
+        ctx.fillStyle = "#3b2c20"; ctx.fillRect(x,y,TILE,TILE);
+        ctx.fillStyle = "#5b432e"; ctx.fillRect(x,y,TILE,3);
+        ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x+2,y+6); ctx.lineTo(x+9,y+13); ctx.lineTo(x+6,y+20);
+        ctx.moveTo(x+14,y+4); ctx.lineTo(x+19,y+15); ctx.lineTo(x+22,y+21);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = "#232839"; ctx.fillRect(x,y,TILE,TILE);
+        ctx.fillStyle = "rgba(255,255,255,.03)"; ctx.fillRect(x+2,y+2,TILE-4,TILE-4);
+        if (openAbove){
+          ctx.fillStyle = "#5c4630"; ctx.fillRect(x,y,TILE,5);
+          ctx.fillStyle = "#7a5c3f"; ctx.fillRect(x,y,TILE,2);
+          ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(x+TILE-2,y,1,5);
+        }
+      }
+    }
+  }
+
+  /* the door, the van beyond it, and the load already on board */
+  ctx.save();
+  const done = items.filter(i => i.delivered).length;
+  const lit = 0.10 + 0.13 * done;
+  const vg = ctx.createLinearGradient(van.x, van.y, van.x, van.y+van.h);
+  vg.addColorStop(0,"rgba(255,198,92," + lit.toFixed(2) + ")");
+  vg.addColorStop(1,"rgba(255,198,92," + (lit+0.2).toFixed(2) + ")");
+  ctx.fillStyle = vg; ctx.fillRect(van.x, van.y, van.w, van.h);
+  ctx.strokeStyle = "rgba(255,198,92," + (0.45 + 0.12*done).toFixed(2) + ")";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(van.x+1, van.y+1, van.w-2, van.h-2);
+
+  /* every seized piece stacks up inside where you can see it */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(van.x+2, van.y+2, van.w-4, van.h-4); ctx.clip();
+  let stack = van.y + van.h - 4;
+  for (const it of items){
+    if (!it.delivered) continue;
+    const d = ITEM_DEFS[it.id];
+    const sc = Math.min(0.5, (van.w - 8) / d.w);
+    ctx.save();
+    ctx.translate(van.x + van.w/2 - (d.w*sc)/2, stack - d.h*sc);
+    ctx.scale(sc, sc);
+    ctx.globalAlpha = 0.9;
+    drawItem(it, 0, 0);
+    ctx.restore();
+    stack -= d.h*sc + 2;
+  }
+  ctx.restore();
+
+  ctx.fillStyle = "rgba(255,198,92,.85)";
+  ctx.font = "9px 'Courier New', monospace"; ctx.textAlign = "center";
+  ctx.fillText(done + "/" + items.length, van.x + van.w/2, van.y + 10);
+  ctx.restore();
+}
+
+function drawItem(it, x, y){
+  const d = ITEM_DEFS[it.id];
+  ctx.save(); ctx.translate(x, y);
+  if (it.id === "rug"){
+    ctx.fillStyle = "#8e2f3a"; ctx.fillRect(0,0,d.w,d.h);
+    ctx.fillStyle = "#d9a441"; ctx.fillRect(2,2,d.w-4,2); ctx.fillRect(2,d.h-4,d.w-4,2);
+    ctx.fillStyle = "#20242f"; ctx.fillRect(d.w/2-3,3,6,d.h-6);
+  } else if (it.id === "wardrobe"){
+    ctx.fillStyle = "#3f2f22"; ctx.fillRect(0,0,d.w,d.h);
+    ctx.fillStyle = "#5c452f"; ctx.fillRect(2,2,d.w-4,d.h-6);
+    ctx.strokeStyle = "#2a2016"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(d.w/2,2); ctx.lineTo(d.w/2,d.h-4); ctx.stroke();
+    ctx.fillStyle = "#c9a227"; ctx.fillRect(d.w/2-4,d.h/2-1,2,4); ctx.fillRect(d.w/2+2,d.h/2-1,2,4);
+  } else if (it.id === "mirror"){
+    ctx.fillStyle = "#6b5335"; ctx.fillRect(0,0,d.w,d.h);
+    const mg = ctx.createLinearGradient(0,0,d.w,d.h);
+    mg.addColorStop(0,"#9fd8d0"); mg.addColorStop(.5,"#4e6b74"); mg.addColorStop(1,"#c9e9e2");
+    ctx.fillStyle = mg; ctx.fillRect(3,3,d.w-6,d.h-6);
+    ctx.fillStyle = "rgba(255,255,255,.35)"; ctx.fillRect(4,4,3,d.h-8);
+  } else if (it.id === "piano"){
+    ctx.fillStyle = "#2b2118"; ctx.fillRect(0,0,d.w,d.h);
+    ctx.fillStyle = "#453425"; ctx.fillRect(2,2,d.w-4,d.h-8);
+    ctx.fillStyle = "#e9e4d6"; ctx.fillRect(3,d.h-13,d.w-6,7);
+    ctx.fillStyle = "#14100b";
+    for (let k=5; k<d.w-6; k+=4) ctx.fillRect(k,d.h-13,2,4);
+    ctx.fillStyle = "#6b5335"; ctx.fillRect(1,d.h-5,4,5); ctx.fillRect(d.w-5,d.h-5,4,5);
+  } else if (it.id === "clock"){
+    ctx.fillStyle = "#3a2a1c"; ctx.fillRect(0,0,d.w,d.h);
+    ctx.fillStyle = "#5a4229"; ctx.fillRect(2,3,d.w-4,d.h-6);
+    ctx.fillStyle = "#0d1018"; ctx.fillRect(4,12,d.w-8,d.h-18);
+    ctx.fillStyle = "#c9a227";
+    ctx.beginPath(); ctx.arc(d.w/2,8,5,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "#2b2118"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(d.w/2,8); ctx.lineTo(d.w/2,5);
+    ctx.moveTo(d.w/2,8); ctx.lineTo(d.w/2+3,8); ctx.stroke();
+    const sw = Math.sin(frame*0.05) * 4;
+    ctx.fillStyle = "#c9a227";
+    ctx.beginPath(); ctx.arc(d.w/2+sw, d.h-10, 3.2, 0, Math.PI*2); ctx.fill();
+  } else if (it.id === "birdcage"){
+    ctx.strokeStyle = "#c9a227"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(d.w/2, 6, d.w/2-2, Math.PI, 0); ctx.stroke();
+    ctx.strokeRect(1, 6, d.w-2, d.h-9);
+    for (let k=4; k<d.w-2; k+=4){ ctx.beginPath(); ctx.moveTo(k,6); ctx.lineTo(k,d.h-3); ctx.stroke(); }
+    ctx.fillStyle = "#6b5335"; ctx.fillRect(0, d.h-3, d.w, 3);
+    ctx.fillStyle = "#79d3c6";
+    const bob = Math.sin(frame*0.11)*2;
+    ctx.beginPath(); ctx.ellipse(d.w/2, d.h-9+bob, 3.4, 2.6, 0, 0, Math.PI*2); ctx.fill();
+  } else {
+    ctx.strokeStyle = "#c9a227"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(d.w/2,0); ctx.lineTo(d.w/2,6); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(d.w/2,8,d.w/2-1,4,0,0,Math.PI*2); ctx.stroke();
+    for (const ox of [3, d.w/2, d.w-3]){
+      ctx.fillStyle = "#ffc65c";
+      ctx.beginPath(); ctx.ellipse(ox, 13 + Math.sin(frame*0.09+ox)*1.2, 2.4, 4, 0, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function drawPlayer(){
+  const p = player;
+  if (p.hurt > 0 && Math.floor(frame/3) % 2) return;
+  ctx.save();
+  ctx.translate(p.x + p.w/2, p.y + p.h/2);
+  ctx.scale(p.face, p.flip);
+  const bob = p.grounded ? Math.sin(p.anim) * 0.8 : 0;
+  ctx.translate(0, bob);
+  if (p.item) ctx.rotate(-Math.min(0.16, ITEM_DEFS[p.item.id].lb / 4000));
+  /* coat */
+  ctx.fillStyle = "#1d2333"; ctx.fillRect(-p.w/2, -p.h/2+5, p.w, p.h-5);
+  ctx.fillStyle = "#2d3548"; ctx.fillRect(-p.w/2+2, -p.h/2+7, p.w-4, p.h-9);
+  /* head + hat */
+  ctx.fillStyle = "#d9b48f"; ctx.fillRect(-4, -p.h/2, 8, 6);
+  ctx.fillStyle = "#12161f"; ctx.fillRect(-7, -p.h/2-3, 14, 3); ctx.fillRect(-4, -p.h/2-6, 8, 3);
+  /* clipboard */
+  ctx.fillStyle = "#e9e4d6"; ctx.fillRect(4, -1, 6, 8);
+  ctx.fillStyle = "#c8392b"; ctx.fillRect(5, 1, 4, 1);
+  ctx.restore();
+}
+
+function drawHUD(){
+  ctx.save();
+  const u = uiScale, barH = 32*u;
+  ctx.fillStyle = "rgba(8,10,16,.85)"; ctx.fillRect(0,0,W,barH);
+  ctx.fillStyle = "#c8392b"; ctx.fillRect(0,barH,W,1.5*u);
+  ctx.font = (11*u) + "px 'Courier New', monospace"; ctx.textAlign = "left";
+  const done = items.filter(i => i.delivered).length;
+  const base = barH*0.62;
+
+  if (u > 1){
+    /* small screen: name and manifest list will not fit, so keep the count */
+    ctx.fillStyle = "rgba(233,228,214,.5)";
+    ctx.fillText(level.name, 10, base);
+    ctx.fillStyle = done === items.length ? "#ffc65c" : "#c8392b";
+    ctx.fillText(done + "/" + items.length, 10, base + 20*u);
+  } else {
+    ctx.fillStyle = "rgba(233,228,214,.5)";
+    ctx.fillText(level.name + " / " + level.acct, 10, 20);
+    ctx.fillStyle = done === items.length ? "#ffc65c" : "#c8392b";
+    ctx.fillText(done + "/" + items.length + " REMOVED", 218, 20);
+
+    let x = 330;
+    for (const it of items){
+      const d = ITEM_DEFS[it.id];
+      const tag = (it.delivered ? "\u2715 " : "\u25A1 ") + d.label;
+      ctx.fillStyle = it.delivered ? "rgba(200,57,43,.9)" : "rgba(233,228,214,.78)";
+      ctx.fillText(tag, x, 20);
+      if (it.delivered){
+        ctx.strokeStyle = "rgba(200,57,43,.9)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, 16.5);
+        ctx.lineTo(x + ctx.measureText(tag).width, 16.5); ctx.stroke();
+      }
+      x += ctx.measureText(tag).width + 20;
+    }
+  }
+
+  /* time until dawn */
+  const t = Math.max(0, timeLeft);
+  const late = t < CONFIG.warnAt;
+  ctx.textAlign = "right";
+  ctx.fillStyle = late ? (Math.floor(frame/8)%2 ? "#c8392b" : "#ffc65c") : "rgba(233,228,214,.6)";
+  const mm = Math.floor(t/60), ss = Math.floor(t%60);
+  ctx.fillText((u > 1 ? "" : "DAWN IN ") + mm + ":" + String(ss).padStart(2,"0"), W-10, base);
+
+  /* what you are carrying */
+  ctx.textAlign = "left";
+  const footH = 30*u;
+  if (player.item){
+    const d = ITEM_DEFS[player.item.id];
+    const head = "CARRYING " + d.label + "  \u2022  " + d.weight;
+    ctx.fillStyle = "rgba(8,10,16,.8)"; ctx.fillRect(0, H-footH, W, footH);
+    ctx.fillStyle = "#ffc65c"; ctx.fillText(head, 10, H-footH*0.36);
+    ctx.fillStyle = "rgba(233,228,214,.6)";
+    if (u > 1) ctx.fillText(d.trait, 10, H-footH*0.36 + 15*u);
+    else ctx.fillText(d.trait, 10 + ctx.measureText(head).width + 22, H-11);
+  }
+  else if (u === 1){
+    ctx.fillStyle = "rgba(233,228,214,.35)";
+    ctx.fillText("E LIFT   \u2022   R RESTART HOUSE   \u2022   P PAUSE", 10, H-11);
+  }
+  if (SND.isMuted() && uiScale === 1){
+    ctx.textAlign = "right"; ctx.fillStyle = "rgba(233,228,214,.45)";
+    ctx.fillText("MUTED", W-10, H-11);
+  }
+  ctx.restore();
+}
+
+const GHOST_LOOK = {
+  drift: { glow:"121,211,198", body:"198,240,232", ring:0 },
+  stalk: { glow:"140,170,235", body:"206,220,252", ring:0 },
+  watch: { glow:"235,150,120", body:"250,226,214", ring:1 }
+};
+
+function drawGhost(g){
+  const look = GHOST_LOOK[g.kind] || GHOST_LOOK.drift;
+  const cx = g.x + g.w/2, cy = g.y + g.h/2;
+  const gl = ctx.createRadialGradient(cx,cy,2,cx,cy,38);
+  gl.addColorStop(0,"rgba(" + look.glow + ",.24)");
+  gl.addColorStop(1,"rgba(" + look.glow + ",0)");
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(cx,cy,38,0,Math.PI*2); ctx.fill();
+
+  if (look.ring){
+    /* a watcher shows you exactly how close is too close */
+    const r = 175 * (g.lunge > 0 ? 0.4 : 1);
+    ctx.strokeStyle = "rgba(" + look.glow + "," + (g.lunge > 0 ? 0.4 : 0.09) + ")";
+    ctx.lineWidth = 1; ctx.setLineDash([3,9]);
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.save(); ctx.translate(g.x, g.y);
+  if (g.lunge > 0) ctx.scale(1.15, 0.92);
+  ctx.fillStyle = "rgba(" + look.body + ",.74)";
+  ctx.beginPath();
+  ctx.moveTo(0, g.h-6);
+  ctx.arc(g.w/2, g.h*0.42, g.w/2, Math.PI, 0);
+  ctx.lineTo(g.w, g.h-6);
+  for (let i=0;i<4;i++){
+    const wob = Math.sin(g.t*2 + i)*3;
+    ctx.quadraticCurveTo(g.w - (i+0.5)*(g.w/4), g.h + wob,
+                         g.w - (i+1)*(g.w/4), g.h-6);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#0c0f18";
+  /* stalkers and watchers keep their eyes on you */
+  const track = (g.kind === "drift") ? (g.dir > 0 ? 1.5 : -1.5)
+              : Math.max(-3, Math.min(3, ((player.x - g.x) / 60)));
+  const eyeH = g.lunge > 0 ? 6 : 4;
+  ctx.fillRect(g.w/2-6+track, g.h*0.32, 3, eyeH);
+  ctx.fillRect(g.w/2+3+track, g.h*0.32, 3, eyeH);
+  ctx.restore();
+}
+
+/* ---------- the night route ---------- */
+const MAP_SPOTS = [[158,178],[480,178],[802,178],[158,352],[480,352],[802,352]];
+
+function stamp(text, x, y, tilt, color, scale){
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(tilt); ctx.scale(scale||1, scale||1);
+  const w = ctx.measureText(text).width + 34;
+  ctx.strokeStyle = color; ctx.lineWidth = 3;
+  ctx.strokeRect(-w/2, -19, w, 38);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-w/2+5, -14, w-10, 28);
+  ctx.fillStyle = color; ctx.textAlign = "center";
+  ctx.fillText(text, 0, 7);
+  ctx.restore();
+}
+
+function drawClosed(){
+  ctx.fillStyle = "#090c14"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "rgba(233,228,214,.02)";
+  for (let y=0; y<H; y+=16) ctx.fillRect(0,y,W,1);
+
+  const L = LEVELS[levelIndex], c = closeStats;
+  ctx.textAlign = "center";
+  ctx.font = "11px 'Courier New', monospace";
+  ctx.fillStyle = "rgba(233,228,214,.45)";
+  ctx.fillText("MCMURRAY RECOVERY SERVICES  /  FIELD REPORT", W/2, 92);
+
+  ctx.font = "bold 20px 'Courier New', monospace";
+  stamp("JOB CLOSED", W/2, 152, -0.035, "#c8392b", 1);
+
+  ctx.font = "bold 22px 'Courier New', monospace";
+  ctx.fillStyle = "#e9e4d6";
+  ctx.fillText(L.name, W/2, 232);
+  ctx.font = "11px 'Courier New', monospace";
+  ctx.fillStyle = "rgba(233,228,214,.4)";
+  ctx.fillText(L.acct + "  /  SETTLED IN FULL", W/2, 254);
+
+  const rows = [
+    ["PIECES RECOVERED", c.pieces + " OF " + c.pieces],
+    ["TIME ON SITE", c.used.toFixed(1) + "S OF " + L.time + "S"],
+    ["COLD SPOTS WALKED INTO", String(c.scares)],
+    ["BEST ON THIS HOUSE", c.best === null ? "-" : c.best.toFixed(1) + "S"]
+  ];
+  let ry = 320;
+  ctx.font = "13px 'Courier New', monospace";
+  for (const [k,v] of rows){
+    ctx.strokeStyle = "rgba(233,228,214,.10)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W/2-250, ry+6.5); ctx.lineTo(W/2+250, ry+6.5); ctx.stroke();
+    ctx.textAlign = "left"; ctx.fillStyle = "rgba(233,228,214,.55)";
+    ctx.fillText(k, W/2-250, ry);
+    ctx.textAlign = "right"; ctx.fillStyle = "#e9e4d6";
+    ctx.fillText(v, W/2+250, ry);
+    ry += 38;
+  }
+
+  if (c.newBest || c.first){
+    ctx.font = "bold 13px 'Courier New', monospace";
+    stamp(c.newBest ? "NEW BEST" : "FIRST RUN", W/2 + 300, 300, 0.22, "#ffc65c", 0.72);
+  }
+
+  ctx.textAlign = "center";
+  ctx.font = "12px 'Courier New', monospace";
+  ctx.fillStyle = Math.floor(frame/24)%2 ? "#ffc65c" : "rgba(255,198,92,.35)";
+  ctx.fillText(levelIndex < LEVELS.length - 1 ? "PRESS SPACE FOR THE NEXT ADDRESS"
+                                              : "PRESS SPACE TO SIGN OUT", W/2, 552);
+}
+
+function drawMap(){
+  ctx.fillStyle = "#090c14"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "rgba(233,228,214,.02)";
+  for (let y=0; y<H; y+=16) ctx.fillRect(0,y,W,1);
+
+  ctx.textAlign = "left";
+  ctx.font = "11px 'Courier New', monospace";
+  ctx.fillStyle = "#c8392b";
+  ctx.fillText("MCMURRAY RECOVERY SERVICES / DISPATCH SHEET", 40, 44);
+  ctx.font = "bold 24px 'Courier New', monospace";
+  ctx.fillStyle = "#e9e4d6";
+  ctx.fillText("N I G H T   R O U T E", 40, 78);
+  ctx.fillStyle = "#c8392b"; ctx.fillRect(40, 92, 250, 2);
+
+  const cleared = levelIndex;
+  ctx.font = "11px 'Courier New', monospace"; ctx.textAlign = "right";
+  ctx.fillStyle = "rgba(233,228,214,.55)";
+  ctx.fillText(cleared + " OF " + LEVELS.length + " ACCOUNTS CLOSED", W-40, 78);
+
+  /* the road between stops */
+  ctx.strokeStyle = "rgba(233,228,214,.18)"; ctx.lineWidth = 2;
+  ctx.setLineDash([5,7]);
+  ctx.beginPath();
+  for (let i=0;i<MAP_SPOTS.length;i++){
+    const [x,y] = MAP_SPOTS[i];
+    if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+
+  for (let i=0;i<LEVELS.length;i++){
+    const L = LEVELS[i], [x,y] = MAP_SPOTS[i];
+    const done = i < levelIndex, here = i === levelIndex;
+    const bw = 250, bh = 92;
+    const bx = x - bw/2, by = y - bh/2;
+
+    ctx.fillStyle = here ? "rgba(255,198,92,.07)" : "rgba(233,228,214,.03)";
+    ctx.fillRect(bx, by, bw, bh);
+    const pulse = here ? 0.55 + 0.25*Math.sin(frame*0.07) : (done ? 0.22 : 0.14);
+    ctx.strokeStyle = (done ? "rgba(200,57,43," : (here ? "rgba(255,198,92," : "rgba(233,228,214,")) + pulse.toFixed(2) + ")";
+    ctx.lineWidth = here ? 2 : 1;
+    ctx.strokeRect(bx+0.5, by+0.5, bw-1, bh-1);
+
+    /* a little house, lit if you have not been in yet */
+    ctx.save(); ctx.translate(bx+22, by+30);
+    ctx.fillStyle = done ? "rgba(200,57,43,.35)" : "rgba(233,228,214,.5)";
+    ctx.beginPath();
+    ctx.moveTo(0,20); ctx.lineTo(0,8); ctx.lineTo(11,0); ctx.lineTo(22,8); ctx.lineTo(22,20);
+    ctx.closePath(); ctx.fill();
+    if (!done){ ctx.fillStyle = "#ffc65c"; ctx.fillRect(8,11,6,6); }
+    ctx.restore();
+
+    ctx.textAlign = "left";
+    ctx.font = "12px 'Courier New', monospace";
+    ctx.fillStyle = done ? "rgba(233,228,214,.35)" : (here ? "#ffc65c" : "rgba(233,228,214,.8)");
+    ctx.fillText(L.name, bx+56, by+26);
+    ctx.font = "10px 'Courier New', monospace";
+    ctx.fillStyle = "rgba(233,228,214,.4)";
+    ctx.fillText(L.acct, bx+56, by+42);
+
+    const r = rosterOf(L);
+    ctx.fillStyle = done ? "rgba(233,228,214,.25)" : "rgba(233,228,214,.55)";
+    ctx.fillText(r.length + " PIECES  \u2022  " + L.ghosts.length + " COLD SPOTS  \u2022  "
+                 + L.time + "S", bx+16, by+68);
+    ctx.fillStyle = "rgba(233,228,214,.22)";
+    ctx.fillText(r.map(d => d.label.split(" ").pop()).join("  "), bx+16, by+84);
+    const bt = bestFor(i);
+    if (bt !== null){
+      ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,198,92,.45)";
+      ctx.fillText("BEST " + bt.toFixed(1) + "S", bx+bw-16, by+84);
+      ctx.textAlign = "left";
+    }
+
+    if (done){
+      ctx.save();
+      ctx.translate(bx+bw-52, by+30); ctx.rotate(-0.2);
+      ctx.strokeStyle = "rgba(200,57,43,.8)"; ctx.lineWidth = 2;
+      ctx.strokeRect(-34,-13,68,26);
+      ctx.fillStyle = "rgba(200,57,43,.9)";
+      ctx.font = "12px 'Courier New', monospace"; ctx.textAlign = "center";
+      ctx.fillText("CLEARED", 0, 5);
+      ctx.restore();
+    }
+  }
+
+  /* the brief for tonight's next door */
+  const L = LEVELS[levelIndex];
+  ctx.textAlign = "center";
+  ctx.font = "13px 'Courier New', monospace";
+  ctx.fillStyle = "rgba(233,228,214,.75)";
+  ctx.fillText(L.note, W/2, 458);
+  ctx.font = "11px 'Courier New', monospace";
+  ctx.fillStyle = "#c8392b";
+  ctx.fillText(L.demand, W/2, 478);
+  ctx.font = "11px 'Courier New', monospace";
+  let ry = 504;
+  for (const d of rosterOf(L)){
+    ctx.fillStyle = "#ffc65c"; ctx.textAlign = "right";
+    ctx.fillText(d.label, W/2 - 14, ry);
+    ctx.fillStyle = "rgba(233,228,214,.55)"; ctx.textAlign = "left";
+    ctx.fillText(d.trait, W/2 + 14, ry);
+    ry += 18;
+  }
+  ctx.textAlign = "center";
+  ctx.fillStyle = Math.floor(frame/24)%2 ? "#ffc65c" : "rgba(255,198,92,.35)";
+  ctx.font = "12px 'Courier New', monospace";
+  ctx.fillText("PRESS SPACE TO KNOCK", W/2, 578);
+}
+
+function render(){
+  if (state === "map"){ drawMap(); return; }
+  if (state === "closed"){ drawClosed(); return; }
+  ctx.save();
+  /* the camera itself carries the weight: heavier furniture drops the frame and breathes */
+  const cd = player.item ? ITEM_DEFS[player.item.id] : null;
+  const load = cd ? Math.min(8, cd.lb / 110) : 0;
+  const strain = load * (0.75 + 0.25 * Math.sin(frame * 0.09));
+  ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake + strain);
+  drawHouse();
+
+  for (const w of wisps){
+    const gl = ctx.createRadialGradient(w.x,w.y,0,w.x,w.y,26);
+    gl.addColorStop(0,"rgba(121,211,198,.10)"); gl.addColorStop(1,"rgba(121,211,198,0)");
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(w.x,w.y,26,0,Math.PI*2); ctx.fill();
+  }
+
+  for (const it of items){
+    if (it.delivered) continue;
+    if (it.held){
+      const d = ITEM_DEFS[it.id];
+      const gd = ITEM_DEFS[it.id].mod.gravDir;
+      const ix = player.x + player.w/2 - d.w/2 + player.face * 4;
+      const iy = gd > 0 ? player.y - d.h + 4 : player.y + player.h - 4;
+      drawItem(it, ix, iy);
+    } else {
+      drawItem(it, it.x, it.y);
+    }
+  }
+
+  if (nearItem){
+    const d = ITEM_DEFS[nearItem.id];
+    const px = nearItem.x + nearItem.w/2, py = nearItem.y - 12;
+    ctx.font = "10px 'Courier New', monospace"; ctx.textAlign = "center";
+    const line = "E  LIFT " + d.label;
+    const wdt = Math.max(ctx.measureText(line).width, ctx.measureText(d.trait).width) + 16;
+    ctx.fillStyle = "rgba(8,10,16,.86)";
+    ctx.fillRect(px - wdt/2, py - 24, wdt, 30);
+    ctx.fillStyle = "#ffc65c"; ctx.fillText(line, px, py - 12);
+    ctx.fillStyle = "rgba(233,228,214,.7)"; ctx.fillText(d.trait, px, py - 1);
+    ctx.fillStyle = "rgba(255,198,92,.5)";
+    ctx.fillRect(px - wdt/2, py + 6, wdt, 1);
+  }
+
+  drawPlayer();
+  for (const g of ghosts) drawGhost(g);
+
+  for (const p of particles){
+    ctx.globalAlpha = Math.min(1, p.life/22);
+    ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  /* lamp light */
+  const lx = player.x + player.w/2, ly = player.y + player.h/2;
+  const flick = 132 + Math.sin(frame*0.21)*5 + Math.sin(frame*0.07)*8;
+  const lamp = ctx.createRadialGradient(lx,ly,10,lx,ly,flick);
+  lamp.addColorStop(0,"rgba(255,198,92,.16)"); lamp.addColorStop(1,"rgba(255,198,92,0)");
+  ctx.fillStyle = lamp; ctx.beginPath(); ctx.arc(lx,ly,flick,0,Math.PI*2); ctx.fill();
+
+  ctx.restore();
+
+  const vig = ctx.createRadialGradient(W/2,H/2,H*0.35,W/2,H/2,H*0.95);
+  vig.addColorStop(0,"rgba(0,0,0,0)"); vig.addColorStop(1,"rgba(0,0,0,.72)");
+  ctx.fillStyle = vig; ctx.fillRect(0,0,W,H);
+
+  if (player.hurt > 0){
+    ctx.fillStyle = "rgba(121,211,198," + (player.hurt/CONFIG.hurtFrames*0.16) + ")";
+    ctx.fillRect(0,0,W,H);
+  }
+  if (entryT > 0){
+    entryT--;
+    const a = Math.min(1, entryT/60) * Math.min(1, (320-entryT)/20);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.textAlign = "center";
+    ctx.font = (13*uiScale) + "px 'Courier New', monospace";
+    const t = level.demand;
+    const bw = ctx.measureText(t).width + 40;
+    ctx.fillStyle = "rgba(8,10,16,.85)";
+    ctx.fillRect(W/2 - bw/2, 44*uiScale, bw, 30*uiScale);
+    ctx.fillStyle = "#c8392b";
+    ctx.fillRect(W/2 - bw/2, 44*uiScale, 3, 30*uiScale);
+    ctx.fillStyle = "rgba(233,228,214,.85)";
+    ctx.fillText(t, W/2, 64*uiScale);
+    ctx.restore();
+  }
+  if (msgT > 0){
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, msgT/28);
+    ctx.font = "16px 'Courier New', monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = msgColor;
+    ctx.fillText(msg, W/2, 78);
+    ctx.restore();
+  }
+
+  drawHUD();
+}
+
+/* ---------- loop ---------- */
+let acc = 0, last = performance.now();
+function loop(now){
+  acc += Math.min(now - last, 100); last = now;
+  while (acc >= 16.667){
+    switch (state){
+      case "play":
+        update();
+        break;
+
+      case "closed":
+        frame++;
+        if (pressed[" "] || pressed["enter"] || pressed["e"] || pressed["w"]){
+          if (levelIndex < LEVELS.length - 1){ levelIndex++; state = "map"; }
+          else finishRoute();
+        }
+        clearPressed();
+        break;
+
+      case "map":
+        frame++;
+        if (pressed[" "] || pressed["enter"] || pressed["e"] || pressed["w"]){
+          buildLevel(levelIndex);
+          flash(LEVELS[levelIndex].name, "#ffc65c");
+          state = "play";
+        }
+        clearPressed();
+        break;
+
+      case "lost":
+        if (pressed["r"] || pressed["enter"] || pressed[" "]){
+          document.getElementById("lost").classList.add("hidden");
+          state = "map";
+        }
+        clearPressed();
+        break;
+
+      case "win":
+        if (pressed["r"] || pressed["enter"] || pressed[" "]){
+          document.getElementById("win").classList.add("hidden");
+          runStart = performance.now(); scares = 0; levelIndex = 0;
+          state = "map";
+        }
+        clearPressed();
+        break;
+
+      default:            // title, paused
+        clearPressed();
+    }
+    acc -= 16.667;
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+function measureUi(){
+  const wrap = document.getElementById("wrap");
+  const cssW = wrap ? wrap.clientWidth : W;
+  uiScale = cssW > 0 && cssW < 620 ? 1.8 : 1;
+}
+addEventListener("resize", measureUi);
+addEventListener("orientationchange", measureUi);
+measureUi();
+
+state = "title";
+buildLevel(0);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
