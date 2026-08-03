@@ -1,0 +1,4074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#10262e">
+<title>Thief of Weather</title>
+<style>
+  :root{
+    --ink:#0a121a;
+    --paper:#dfe6e4;
+    --accent:#7fe3d6;
+    --lantern:#e8b06a;
+    --rust:#c0574a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{
+    height:100%;height:100dvh;      /* dvh survives the iOS URL bar */
+    overflow:hidden;background:#10262e;
+    overscroll-behavior:none;        /* no pull-to-refresh mid-jump */
+    -webkit-tap-highlight-color:transparent;
+    position:fixed;inset:0;
+  }
+  /* Gesture blocking is scoped to the play surface, so the player can
+     still pinch-zoom menus, dialogue and the help panel. */
+  canvas, #touch, .tbtn{
+    touch-action:none;
+    -webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;
+  }
+  body{
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    color:var(--paper);-webkit-font-smoothing:antialiased;
+  }
+  canvas{display:block;}
+
+  /* ---------------- HUD ---------------- */
+  #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .6s ease;}
+  #hud.on{opacity:1;}
+
+  .gauge{position:absolute;left:26px;bottom:26px;display:flex;align-items:flex-end;gap:14px;}
+  #life{display:flex;gap:6px;align-items:flex-end;}
+  .flame{
+    width:10px;height:17px;background:var(--lantern);
+    border-radius:50% 50% 45% 45% / 62% 62% 38% 38%;
+    box-shadow:0 0 12px rgba(232,176,106,.75);transition:all .25s ease;
+  }
+  .flame.out{background:#3d4348;box-shadow:none;height:9px;opacity:.5;}
+
+  #tide{
+    width:15px;height:88px;border:1px solid rgba(223,230,228,.35);
+    border-radius:2px;position:relative;overflow:hidden;background:rgba(16,38,46,.55);
+  }
+  #tideFill{
+    position:absolute;left:0;right:0;bottom:0;height:100%;
+    background:linear-gradient(180deg,var(--accent),#2c7d78);transition:height .08s linear;
+  }
+
+  /* how loud you are — only shown where it matters */
+  #ear{position:absolute;left:26px;bottom:126px;display:none;align-items:center;gap:8px;}
+  #ear.on{display:flex;}
+  #earBar{
+    width:74px;height:4px;border:1px solid rgba(238,242,246,.35);
+    position:relative;overflow:hidden;background:rgba(27,33,48,.5);
+  }
+  #earFill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--paper);
+    transition:width .1s linear,background .2s ease;}
+  #earLbl{font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:8.5px;letter-spacing:.3em;text-transform:uppercase;opacity:.62;}
+
+  #marks{position:absolute;right:20px;top:18px;text-align:right;}
+  #marks .n{font-size:27px;line-height:1;text-shadow:0 2px 10px rgba(0,0,0,.85);}
+  #marks .n span{opacity:.45;font-size:17px;}
+  #marks .lbl{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.34em;text-transform:uppercase;opacity:.6;margin-top:6px;
+  }
+  #worldTag{
+    position:absolute;left:26px;top:18px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.34em;text-transform:uppercase;opacity:.55;
+    text-shadow:0 2px 10px rgba(0,0,0,.8);
+  }
+
+  /* the stolen weather, one slot per world taken */
+  #satchel{position:absolute;right:20px;top:76px;display:flex;gap:7px;justify-content:flex-end;}
+  .vial{
+    width:15px;height:15px;border:1px solid rgba(223,230,228,.30);
+    border-radius:50%;background:rgba(0,0,0,.25);transition:all .3s ease;
+  }
+  .vial.held{border-color:currentColor;box-shadow:0 0 10px currentColor;background:currentColor;}
+  .vial.active{transform:scale(1.35);}
+
+  #reticle{
+    position:absolute;left:50%;top:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+    border:1px solid rgba(223,230,228,.55);border-radius:50%;transition:all .12s ease;
+  }
+  #reticle.live{
+    width:19px;height:19px;margin:-9.5px 0 0 -9.5px;
+    border-color:var(--accent);box-shadow:0 0 14px currentColor;
+  }
+
+  /* the one line that says what to do right now */
+  #objective{
+    position:absolute;left:50%;top:14%;transform:translateX(-50%);
+    max-width:min(520px,86vw);text-align:center;
+    font-size:15.5px;line-height:1.5;
+    text-shadow:0 2px 14px #000,0 0 26px #000;
+    opacity:0;transition:opacity .45s ease;pointer-events:none;
+  }
+  #objective.on{opacity:1;}
+  #objective .tag{
+    display:block;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--accent);opacity:.85;margin-bottom:7px;
+  }
+  #objective kbd{
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82em;
+    border:1px solid rgba(223,230,228,.45);border-radius:3px;
+    padding:1px 6px;margin:0 2px;background:rgba(0,0,0,.35);
+  }
+
+  /* pause / help */
+  #help{
+    position:fixed;inset:0;z-index:15;display:none;
+    align-items:center;justify-content:center;padding:24px;
+    background:rgba(8,16,20,.93);overflow-y:auto;
+  }
+  #help.on{display:flex;}
+  #helpCard{
+    width:min(520px,100%);pointer-events:auto;
+  }
+  #helpCard h2{
+    font-size:26px;font-weight:400;margin-bottom:4px;letter-spacing:.01em;
+  }
+  #helpNow{
+    font-size:15px;line-height:1.6;opacity:.85;margin:14px 0 20px;
+    border-left:2px solid var(--accent);padding-left:14px;
+  }
+  #helpCard h3{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.34em;text-transform:uppercase;
+    opacity:.55;margin:22px 0 10px;font-weight:400;
+  }
+  .krow{
+    display:grid;grid-template-columns:120px 1fr;gap:8px 16px;
+    font-size:13.5px;line-height:1.5;
+  }
+  .krow b{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:11px;font-weight:600;color:var(--accent);letter-spacing:.05em;
+  }
+  .krow i{font-style:normal;opacity:.55;font-size:.88em;}
+  #helpClose{margin-top:26px;}
+
+  #toast{
+    position:absolute;left:50%;top:27%;transform:translateX(-50%);
+    font-size:16px;text-align:center;text-shadow:0 2px 14px #000;
+    opacity:0;transition:opacity .4s ease;max-width:80vw;
+  }
+  #toast.on{opacity:1;}
+
+  /* ---------------- dialogue ---------------- */
+  #dialog{
+    position:absolute;left:50%;bottom:24px;transform:translateX(-50%);
+    width:min(600px,calc(100vw - 32px));
+    background:#e7e0cf;color:#101d27;border:2px solid var(--ink);
+    box-shadow:5px 5px 0 rgba(10,18,26,.55);
+    padding:15px 18px 12px;display:none;pointer-events:auto;
+    -webkit-user-select:none;user-select:none;
+  }
+  #dialog.on{display:block;}
+  #dlgName{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.34em;text-transform:uppercase;
+    color:#3a5566;margin-bottom:2px;
+  }
+  #dlgRule{height:1px;background:var(--ink);opacity:.3;margin:8px 0 11px;}
+  #dlgBody{font-size:16px;line-height:1.55;min-height:3.1em;}
+  #dlgHint{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:8.5px;letter-spacing:.3em;text-transform:uppercase;
+    text-align:right;opacity:0;margin-top:9px;transition:opacity .35s ease;
+  }
+
+  /* ---------------- inscriptions ---------------- */
+  #carve{
+    position:absolute;left:50%;top:13%;transform:translateX(-50%);
+    width:min(540px,calc(100vw - 44px));text-align:center;
+    font-size:15px;line-height:1.62;color:var(--paper);
+    text-shadow:0 2px 16px #000,0 0 30px #000;opacity:0;transition:opacity .5s ease;
+  }
+  #carve.on{opacity:1;}
+  #carve .rule{width:40px;height:1px;background:var(--accent);margin:0 auto 13px;}
+  #carve .yr{
+    display:block;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9.5px;letter-spacing:.36em;text-transform:uppercase;
+    color:var(--accent);margin-bottom:9px;
+  }
+
+  /* ---------------- touch ---------------- */
+  #touch{display:none;}
+  #touch.on{display:block;}
+  #stick{
+    position:absolute;width:112px;height:112px;margin:-56px 0 0 -56px;
+    border:1px solid rgba(223,230,228,.28);border-radius:50%;
+    opacity:0;transition:opacity .14s ease;
+  }
+  #stickNub{
+    position:absolute;left:50%;top:50%;width:46px;height:46px;
+    transform:translate(-50%,-50%);
+    background:rgba(127,227,214,.3);border:1px solid var(--accent);border-radius:50%;
+  }
+  .tbtn{
+    position:absolute;pointer-events:auto;width:58px;height:58px;border-radius:50%;
+    border:1px solid rgba(223,230,228,.30);background:rgba(10,18,26,.34);color:var(--paper);
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9px;letter-spacing:.14em;text-transform:uppercase;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  .tbtn:active{background:rgba(127,227,214,.28);border-color:var(--accent);}
+  #btnJump{right:22px;bottom:112px;}
+  #btnHit{right:92px;bottom:72px;}
+  #btnCast{right:22px;bottom:26px;width:70px;height:70px;
+    border-color:rgba(127,227,214,.75);color:var(--accent);}
+  #btnSwap{right:100px;bottom:150px;width:50px;height:50px;display:none;}
+  #btnCreep{left:22px;bottom:26px;width:54px;height:54px;display:none;}
+  #btnMute{left:22px;bottom:96px;width:44px;height:44px;font-size:8px;}
+  #btnTalk{right:22px;bottom:196px;display:none;
+    border-color:rgba(232,176,106,.8);color:var(--lantern);}
+  #btnHelp{left:22px;bottom:158px;width:44px;height:44px;}
+  #btnCam{left:22px;bottom:212px;width:44px;height:44px;}
+
+  /* ---------------- overlays ---------------- */
+  .veil{
+    position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:28px;
+    background:radial-gradient(ellipse at 50% 40%,#24363e 0%,#0b1c22 78%);
+    overflow-y:auto;
+  }
+  .veil.hidden{display:none;}
+  .eyebrow{
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:10px;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--accent);opacity:.85;margin-bottom:26px;line-height:1.6;
+  }
+  h1, .h-title{
+    font-size:clamp(38px,8.5vw,74px);font-weight:400;line-height:.98;margin-bottom:18px;
+  }
+  h1, .h-title{letter-spacing:.01em;}
+  h1 em, .h-title em{
+    font-style:italic;opacity:.5;display:block;
+    font-size:.34em;letter-spacing:.09em;line-height:1.4;margin-bottom:18px;
+  }
+  .blurb{max-width:440px;font-size:15.5px;line-height:1.65;opacity:.78;margin-bottom:26px;}
+  .keys{
+    display:grid;grid-template-columns:auto auto;gap:7px 18px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:11.5px;opacity:.72;margin-bottom:28px;text-align:left;
+  }
+  .keys b{font-weight:600;color:var(--accent);}
+  .go{
+    pointer-events:auto;cursor:pointer;font-family:inherit;font-size:14px;
+    letter-spacing:.22em;text-transform:uppercase;color:#0b1c22;background:var(--accent);
+    border:0;padding:15px 38px;border-radius:2px;
+    transition:transform .15s ease,box-shadow .15s ease;
+  }
+  .go:hover,.go:focus-visible{transform:translateY(-2px);box-shadow:0 8px 26px rgba(127,227,214,.28);}
+  .go:focus-visible{outline:2px solid var(--paper);outline-offset:3px;}
+
+  /* world select */
+  #picker{display:flex;flex-direction:column;gap:9px;width:min(430px,100%);margin-bottom:26px;}
+  .wbtn{
+    pointer-events:auto;cursor:pointer;font-family:inherit;text-align:left;
+    display:flex;align-items:center;gap:15px;
+    background:rgba(255,255,255,.045);border:1px solid rgba(223,230,228,.18);
+    color:var(--paper);padding:13px 15px;border-radius:2px;
+    transition:background .15s ease,border-color .15s ease,transform .15s ease;
+  }
+  .wbtn:hover:not(:disabled),.wbtn:focus-visible{
+    background:rgba(255,255,255,.09);border-color:var(--accent);transform:translateX(3px);
+  }
+  .wbtn:disabled{opacity:.32;cursor:default;}
+  .wbtn .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;}
+  .wbtn .txt{display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .wbtn .nm{display:block;font-size:17px;line-height:1.15;}
+  .wbtn .sub{
+    display:block;
+    font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9px;letter-spacing:.24em;text-transform:uppercase;
+    opacity:.5;line-height:1.5;
+  }
+  .wbtn .rt{margin-left:auto;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:9px;letter-spacing:.24em;text-transform:uppercase;opacity:.55;}
+  #loading{font-size:13px;letter-spacing:.3em;text-transform:uppercase;opacity:.6;}
+  #crashMsg{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;}
+  /* ---------- mobile layout ---------- */
+  @supports(padding:max(0px)){
+    .gauge   {left:max(26px, env(safe-area-inset-left));
+              bottom:max(26px, env(safe-area-inset-bottom));}
+    #ear     {left:max(26px, env(safe-area-inset-left));}
+    #marks   {right:max(20px, env(safe-area-inset-right));
+              top:max(18px, env(safe-area-inset-top));}
+    #satchel {right:max(20px, env(safe-area-inset-right));}
+    #worldTag{left:max(26px, env(safe-area-inset-left));
+              top:max(18px, env(safe-area-inset-top));}
+    #btnJump, #btnCast, #btnHit, #btnSwap, #btnTalk{
+              margin-right:env(safe-area-inset-right);}
+    #btnCreep, #btnMute{margin-left:env(safe-area-inset-left);}
+    #btnJump, #btnCast, #btnHit, #btnCreep, #btnMute{
+              margin-bottom:env(safe-area-inset-bottom);}
+    #dialog  {bottom:max(24px, calc(env(safe-area-inset-bottom) + 12px));}
+  }
+
+  /* short screens: shrink the furniture rather than let it collide */
+  @media (max-height:560px){
+    #dialog{padding:11px 14px 9px;bottom:12px;}
+    #dlgBody{font-size:14px;min-height:2.6em;}
+    #carve{top:8%;font-size:13px;}
+    .gauge{bottom:16px;}
+    #tide{height:62px;}
+    #ear{bottom:104px;}
+  }
+  /* narrow screens: the touch buttons get priority over the readouts */
+  @media (max-width:430px){
+    #marks .n{font-size:22px;}
+    #carve{font-size:13.5px;width:calc(100vw - 32px);}
+    #dialog{width:calc(100vw - 20px);}
+    #dlgBody{font-size:15px;}
+    .tbtn{font-size:8.5px;}
+  }
+  /* landscape phones: everything hugs the outer edges */
+  @media (orientation:landscape) and (max-height:500px){
+    #btnJump{bottom:96px;} #btnHit{right:88px;bottom:60px;}
+    #btnCast{bottom:20px;} #btnSwap{bottom:128px;right:92px;}
+    #btnTalk{bottom:168px;}
+    #btnCreep{bottom:20px;} #btnMute{bottom:80px;}
+    #dialog{bottom:10px;padding:10px 14px 8px;}
+    #dlgBody{min-height:2.2em;}
+    .veil{padding:16px;}
+    h1, .h-title{font-size:clamp(28px,5.5vw,48px);}
+    .keys{font-size:10px;gap:4px 14px;margin-bottom:16px;}
+    .blurb{margin-bottom:14px;font-size:14px;}
+  }
+  #rotate{
+    position:fixed;inset:0;z-index:20;display:none;
+    align-items:center;justify-content:center;flex-direction:column;
+    background:#0b1c22;text-align:center;padding:30px;
+  }
+  #rotate.on{display:flex;}
+  #rotate .ic{font-size:40px;margin-bottom:18px;opacity:.7;}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+</head>
+<body>
+
+<div id="hud" aria-hidden="false">
+  <div id="reticle" aria-hidden="true"></div>
+  <div id="worldTag"></div>
+  <div class="gauge">
+    <div id="life" role="img" aria-label="Health"></div>
+    <div id="tide" role="img" aria-label="Weather charge"><div id="tideFill"></div></div>
+  </div>
+  <div id="ear" role="img" aria-label="How much noise you are making">
+    <div id="earBar"><div id="earFill"></div></div><div id="earLbl">Quiet</div>
+  </div>
+  <div id="marks" role="status" aria-live="polite">
+    <div class="n"><b id="mc">0</b><span>/10</span></div>
+    <div class="lbl" id="mcLbl">Marks</div>
+  </div>
+  <div id="satchel" role="img" aria-label="Weathers you are carrying"></div>
+  <div id="objective" role="status" aria-live="polite"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <div id="touch">
+    <div id="stick"><div id="stickNub"></div></div>
+    <button type="button" class="tbtn" id="btnJump" aria-label="Jump. Tap twice to double jump">Jump</button>
+    <button type="button" class="tbtn" id="btnHit" aria-label="Attack with your blade">Surge</button>
+    <button type="button" class="tbtn" id="btnCast" aria-label="Use the weather you are holding">Draw</button>
+    <button type="button" class="tbtn" id="btnSwap" aria-label="Change which weather you are holding">Swap</button>
+    <button type="button" class="tbtn" id="btnCreep" aria-label="Creep: move quietly">Creep</button>
+    <button type="button" class="tbtn" id="btnMute" aria-label="Change sound volume">Sound</button>
+    <button type="button" class="tbtn" id="btnTalk" aria-label="Speak to the person nearby">Talk</button>
+    <button type="button" class="tbtn" id="btnHelp" aria-label="Pause and show help">Help</button>
+    <button type="button" class="tbtn" id="btnCam" aria-label="Turn the auto-follow camera on or off">Cam</button>
+  </div>
+  <div id="carve" role="status" aria-live="polite"></div>
+  <div id="dialog" role="dialog" aria-live="polite" aria-label="Conversation">
+    <div id="dlgName"></div>
+    <div id="dlgRule"></div>
+    <div id="dlgBody"></div>
+    <div id="dlgHint">tap to continue</div>
+  </div>
+</div>
+
+<div id="help" role="dialog" aria-label="Paused. Help and controls">
+  <div id="helpCard">
+    <div class="eyebrow">Paused</div>
+    <h2>Where you are</h2>
+    <div id="helpNow"></div>
+    <h3>Getting around</h3>
+    <div class="krow" id="helpMove"></div>
+    <h3>Doing things</h3>
+    <div class="krow" id="helpAct"></div>
+    <button type="button" class="go" id="helpClose">Back to it</button>
+  </div>
+</div>
+
+<div id="rotate" role="status" aria-live="polite">
+  <div class="ic" aria-hidden="true">⟳</div><div>Rotate your device</div>
+</div>
+
+<div class="veil" id="title">
+  <div class="eyebrow">A game in five weathers</div>
+  <h1><em>You take weather that isn't yours</em>Thief of Weather</h1>
+  <p class="blurb">You are Kite, and you take weather that isn't yours. Each world has one kind of weather and a guardian holding onto it for a reason that stopped making sense a long time ago.</p>
+  <p class="blurb" style="margin-bottom:22px;"><b style="opacity:.95;">In each world:</b> read the ten records scattered across it to learn what went wrong, which opens the way to the guardian. Everything you take, you keep, and it opens roads in the worlds you already left.</p>
+  <div class="keys">
+    <b>W A S D</b><span>Move</span>
+    <b>Space</b><span>Jump (twice to double jump)</span>
+    <b>Mouse</b><span>Look around</span>
+    <b>H</b><span>Help, any time</span>
+    <b>R</b><span>Snap camera behind you</span>
+  </div>
+  <div id="picker"></div>
+  <p class="blurb" style="font-size:12.5px;opacity:.45;margin-bottom:0;">Worlds unlock as you finish them. Return any time, with everything you've taken.</p>
+</div>
+
+<div class="veil hidden" id="loader"><div id="loading">Changing the weather…</div></div>
+
+<div class="veil hidden" id="crash">
+  <div class="eyebrow" style="color:var(--rust)">Something broke</div>
+  <h2 class="h-title"><em>Thief of Weather</em>Script error</h2>
+  <p class="blurb" id="crashMsg"></p>
+  <button type="button" class="go" id="crashCopy">Copy the message</button>
+</div>
+
+<script>
+function bootGame(){
+"use strict";
+
+/* ==========================================================
+   0. ENGINE CONFIG
+   ========================================================== */
+const CFG = {
+  gravity:26, runSpeed:8.2, sprintSpeed:12.4, creepSpeed:3.4,
+  accel:58, airAccel:22, friction:12,
+  jumpVel:10.2, doubleJumpVel:9.0, coyoteTime:0.12, jumpBuffer:0.14,
+  buoyancy:20, waterDrag:3.4, swimSpeed:4.2,
+  camDist:7.4, camHeight:2.5, camLerp:9, mouseSens:0.0023,
+  touchSens:0.0090,      // a thumb travels far less than a mouse
+  followRate:2.6,        // how fast the camera drifts in behind you
+  followDelay:0.55,      // how long after you stop steering before it does
+  followMinSpeed:2.2,    // it only follows while you are actually going somewhere
+  manaMax:100, manaRegen:16, castRange:28,
+  drawCostPerSec:34, columnRadius:1.15, columnGrowRate:5.2,
+  columnMaxHeight:8.5, columnLife:7.5,
+  stillCost:26, stillTime:6.0,
+  forgeCostPerSec:30, forgeRate:2.6, forgeMax:9.0, forgeCool:11.0, forgeHeatRadius:5.0,
+  growCostPerSec:28, growRate:5.0, growLife:9.0, growWidth:0.9, stillTooLong:2.2,
+  arcCost:20, arcRange:34, arcBlastRadius:3.4,
+  aimAssist: 1,          // set from the input type at boot
+  drawReach: 9,          // how far in front Draw lands when nothing is aimed
+  attackCooldown:0.45, attackRadius:2.6,
+  playerRadius:0.42, playerHeight:1.75, maxHealth:5,
+  waterLevel:0
+};
+
+const COARSE = (window.matchMedia && matchMedia("(pointer:coarse)").matches)
+            || "ontouchstart" in window;
+
+/* ==========================================================
+   1. RENDERER / SCENE
+   ========================================================== */
+const renderer = (function(){
+  let ok=false, why="";
+  try{
+    const c=document.createElement("canvas");
+    ok = !!(c.getContext("webgl")||c.getContext("experimental-webgl"));
+    if(!ok) why="getContext returned null";
+  }catch(err){ why=err.message; }
+  if(!ok) throw new Error("No WebGL context available ("+(why||"unknown")+
+    "). Open this in Chrome, Firefox or Safari with hardware acceleration on.");
+  return new THREE.WebGLRenderer({antialias:true, powerPreference:"high-performance"});
+})();
+let quality = COARSE ? 1.20 : 1.75;
+renderer.setPixelRatio(Math.min(devicePixelRatio, quality));
+renderer.setSize(innerWidth, innerHeight);
+// Shadow mapping is the single most expensive thing on a phone GPU and
+// the toon ramp already reads depth well without it.
+renderer.shadowMap.enabled = !COARSE;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, COARSE ? 260 : 600);
+
+const sun = new THREE.DirectionalLight(0xffffff, 0.62);
+sun.position.set(-38,46,26);
+sun.castShadow = !COARSE;
+sun.shadow.mapSize.set(COARSE?512:2048, COARSE?512:2048);
+const sc = sun.shadow.camera;
+sc.left=-70; sc.right=70; sc.top=70; sc.bottom=-70; sc.near=1; sc.far=180;
+scene.add(sun);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 0.30);
+scene.add(hemi);
+const lamp = new THREE.PointLight(0xe8b06a, 0.26, 15, 2);
+scene.add(lamp);
+
+/* ==========================================================
+   2. WET INK — three-step toon bands, black shell outlines
+   ========================================================== */
+function toonRamp(stops){
+  const d = new Uint8Array(stops.length*4);
+  for(let i=0;i<stops.length;i++){
+    const v = Math.round(stops[i]*255);
+    d[i*4]=v; d[i*4+1]=v; d[i*4+2]=v; d[i*4+3]=255;
+  }
+  const t = new THREE.DataTexture(d, stops.length, 1, THREE.RGBAFormat);
+  t.minFilter = t.magFilter = THREE.NearestFilter;
+  t.generateMipmaps = false; t.needsUpdate = true;
+  return t;
+}
+const RAMP = toonRamp([0.26, 0.62, 1.0]);
+let INK = new THREE.MeshBasicMaterial({color:0x0a121a, side:THREE.BackSide, fog:false});
+const INK_W = 0.028;
+
+function toon(hex){ return new THREE.MeshToonMaterial({color:hex, gradientMap:RAMP}); }
+
+// Push each vertex out along its own normal, once, on the CPU.
+// Constant line weight on any shape, no shader that can fail quietly.
+function shell(geo, t){
+  const g = geo.clone();
+  const pos = g.attributes.position, nor = g.attributes.normal;
+  for(let i=0;i<pos.count;i++){
+    pos.setXYZ(i,
+      pos.getX(i)+nor.getX(i)*t,
+      pos.getY(i)+nor.getY(i)*t,
+      pos.getZ(i)+nor.getZ(i)*t);
+  }
+  pos.needsUpdate = true;
+  g.computeBoundingSphere();
+  return g;
+}
+function inked(geo, hex){
+  const g = new THREE.Group();
+  const fill = new THREE.Mesh(geo, toon(hex));
+  fill.castShadow = true;
+  g.add(fill, new THREE.Mesh(shell(geo, INK_W), INK));
+  g.userData.fill = fill;
+  return g;
+}
+
+/* ==========================================================
+   3. WORLD CONTAINER — everything a world owns lives here, so
+   swapping worlds is a teardown of one group and three arrays.
+   ========================================================== */
+let worldGroup = new THREE.Group(); scene.add(worldGroup);
+let colliders = [];
+let solidMeshes = [];      // cached: rebuilt on world load, not per frame
+let enemies   = [];
+let drifters  = [];
+let marks     = [];
+let columns   = [];
+let holding   = null;
+let collected = 0;
+let W = null;                 // the active world definition
+let matStone, matStoneD, matSoft, matColumn;
+let ground = null, groundBase = null, groundGeo = null;
+let weather = null, weatherGeo = null, weatherVel = null;
+let npcGroup = null, NPC = null;
+
+const BOX = new THREE.BoxGeometry(1,1,1);
+// Outlines are cached by size, so a level of repeated shapes only
+// pays for the distinct ones.
+const shellCache = new Map();
+function boxShell(w,h,d){
+  const key = w.toFixed(2)+"_"+h.toFixed(2)+"_"+d.toFixed(2);
+  let g = shellCache.get(key);
+  if(!g){ g = shell(new THREE.BoxGeometry(w,h,d), INK_W*1.25); shellCache.set(key, g); }
+  return g;
+}
+function block(x,y,z,w,h,d,mat,tag){
+  const m = new THREE.Mesh(BOX, mat||matStone);
+  m.position.set(x, y+h/2, z);
+  m.scale.set(w,h,d);
+  m.castShadow = true; m.receiveShadow = true;
+  worldGroup.add(m);
+  if(tag !== "ceiling"){
+    const line = new THREE.Mesh(boxShell(w,h,d), INK);
+    line.position.copy(m.position);
+    worldGroup.add(line);
+  }
+  colliders.push({
+    min:new THREE.Vector3(x-w/2, y, z-d/2),
+    max:new THREE.Vector3(x+w/2, y+h, z+d/2),
+    tag:tag||"stone", mesh:m
+  });
+  return m;
+}
+
+/* ---- dressing ----
+   Colliders stay simple boxes so the physics keeps its shape.
+   Everything with character hangs off them and collides with
+   nothing, which is what lets the architecture get complicated. */
+// Phones get the same scenery, thinned. Composition survives; the
+// draw-call count does not need to.
+const DECO = COARSE ? 0.55 : 1;
+function decoN(n){ return Math.max(1, Math.round(n*DECO)); }
+
+function deco(geo, hex, x, y, z, rx, ry, rz, sx, sy, sz){
+  const g = inked(geo, hex);
+  if(COARSE){
+    geo.computeBoundingSphere();
+    // a line thinner than a pixel is cost with no picture
+    if(geo.boundingSphere && geo.boundingSphere.radius < 0.6 && g.children[1])
+      g.remove(g.children[1]);
+  }
+  g.position.set(x,y,z);
+  if(rx||ry||rz) g.rotation.set(rx||0, ry||0, rz||0);
+  if(sx!==undefined) g.scale.set(sx, sy===undefined?sx:sy, sz===undefined?sx:sz);
+  worldGroup.add(g);
+  return g;
+}
+// a doorway or window punched through a wall, built from three pieces
+function arch(x,y,z,w,h,depth,hex,ry){
+  const g = new THREE.Group();
+  const jamb = new THREE.BoxGeometry(w*0.22, h, depth);
+  const l = inked(jamb, hex); l.position.x = -w*0.39; g.add(l);
+  const r = inked(jamb, hex); r.position.x =  w*0.39; g.add(r);
+  const cap = inked(new THREE.CylinderGeometry(w*0.5, w*0.5, depth, 12, 1, false, 0, Math.PI), hex);
+  cap.rotation.x = Math.PI/2; cap.rotation.z = Math.PI;
+  cap.position.y = h*0.5; g.add(cap);
+  g.position.set(x,y,z);
+  if(ry) g.rotation.y = ry;
+  worldGroup.add(g);
+  return g;
+}
+
+/* ---- boundaries ----
+   Invisible colliders, plus a pane that only shows itself when
+   you get near it. The edge should stop you without ever being
+   part of the scenery. */
+const barriers = [];
+let worldLimit = null, arenaLimit = null;
+function bounds(minX, maxX, minZ, maxZ, y0, y1, isArena){
+  const rect = {minX, maxX, minZ, maxZ};
+  if(isArena) arenaLimit = rect; else worldLimit = rect;
+  const T = 3;                          // thick, so nothing tunnels through at speed
+  const walls = [
+    [minX-T, minX, minZ-T, maxZ+T],
+    [maxX,   maxX+T, minZ-T, maxZ+T],
+    [minX-T, maxX+T, minZ-T, minZ],
+    [minX-T, maxX+T, maxZ,   maxZ+T]
+  ];
+  walls.forEach(w=>{
+    // collider only: no mesh field, so the camera never collides with it
+    colliders.push({
+      min:new THREE.Vector3(w[0], y0, w[2]),
+      max:new THREE.Vector3(w[1], y1, w[3]),
+      tag:"bound"
+    });
+  });
+  // the visible hint: four panes that fade up as you approach
+  const faces = [
+    [minX, (minZ+maxZ)/2, 0.1, maxZ-minZ],
+    [maxX, (minZ+maxZ)/2, 0.1, maxZ-minZ],
+    [(minX+maxX)/2, minZ, maxX-minX, 0.1],
+    [(minX+maxX)/2, maxZ, maxX-minX, 0.1]
+  ];
+  const paneH = Math.min(60, y1-y0);
+  const paneY = (y0+y1)/2;
+  faces.forEach(f=>{
+    const m = new THREE.Mesh(new THREE.BoxGeometry(f[2], paneH, f[3]),
+      new THREE.MeshBasicMaterial({
+        color:W.accent, transparent:true, opacity:0, depthWrite:false,
+        side:THREE.DoubleSide, fog:false
+      }));
+    m.position.set(f[0], paneY, f[1]);
+    worldGroup.add(m);
+    barriers.push({m, x:f[0], z:f[1], vertical:f[2] < 1, h:paneH});
+  });
+}
+function fadeBarriers(){
+  for(const b of barriers){
+    const d = b.vertical ? Math.abs(player.pos.x - b.x) : Math.abs(player.pos.z - b.z);
+    const near = Math.max(0, 1 - d/9);
+    b.m.material.opacity = near*near*0.16;
+    if(near > 0) b.m.position.y = player.pos.y;
+  }
+}
+
+/* ==========================================================
+   4. THE PLAYER — Kite, and the weather he carries between worlds
+   ========================================================== */
+const player = {
+  pos:new THREE.Vector3(0,1.4,6), vel:new THREE.Vector3(),
+  yaw:Math.PI, pitch:-0.12,
+  grounded:false, coyote:0, buffered:0, jumps:0,
+  inWater:false, health:CFG.maxHealth, invuln:0,
+  mana:CFG.manaMax, attackCd:0, attackT:0, bob:0,
+  spawn:new THREE.Vector3(0,1.4,6),
+  magics:[],            // stolen, permanent, carried everywhere
+  magic:null            // the one currently in hand
+};
+const PROGRESS = {reached:0, cleared:[]};
+
+const rig = new THREE.Group(); scene.add(rig);
+const FUR=0xb09873, FURD=0x574733, COAT=0xbf5c28;
+
+const hips = inked(new THREE.SphereGeometry(0.25,12,10), FUR);
+hips.position.y = 0.74; rig.add(hips);
+
+const belt = inked(new THREE.CylinderGeometry(0.285,0.29,0.10,12), 0x2b2118);
+belt.position.y = 0.735; rig.add(belt);
+const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.10,0.08,0.04), toon(0x9c7b46));
+buckle.position.set(0,0.735,0.27); rig.add(buckle);
+
+// two hanging panels: front and centre back stay open, so it reads coat not skirt
+const panels = [];
+for(let i=0;i<2;i++){
+  const side = i===0 ? -1 : 1;
+  const top = new THREE.Group();
+  top.position.set(0.265*side, 0.655, -0.115);
+  top.rotation.z = 0.15*side;
+  const a = inked(new THREE.BoxGeometry(0.16,0.30,0.045), COAT);
+  a.position.y = -0.15; top.add(a);
+  const low = new THREE.Group(); low.position.y = -0.30; top.add(low);
+  const b = inked(new THREE.BoxGeometry(0.135,0.26,0.04), COAT);
+  b.position.y = -0.13; low.add(b);
+  rig.add(top);
+  panels.push([top, low]);
+}
+
+const torso = new THREE.Group(); torso.position.y = 0.72; rig.add(torso);
+const chest = inked(new THREE.CylinderGeometry(0.235,0.30,0.56,12), FUR);
+chest.position.y = 0.30; torso.add(chest);
+const jacket = inked(new THREE.CylinderGeometry(0.290,0.345,0.44,12,1,true), COAT);
+jacket.position.y = 0.21; jacket.userData.fill.material.side = THREE.DoubleSide; torso.add(jacket);
+const collar = inked(new THREE.CylinderGeometry(0.290,0.340,0.19,12,1,true), COAT);
+collar.position.y = 0.57; collar.rotation.x = -0.17;
+collar.userData.fill.material.side = THREE.DoubleSide; torso.add(collar);
+
+// the hollow: what he takes goes in here
+const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15,0.035,8,20), toon(0x9c7b46));
+ring.position.set(0,0.34,0.30); ring.castShadow = true; torso.add(ring);
+const core = new THREE.Mesh(new THREE.SphereGeometry(0.11,14,12),
+  new THREE.MeshBasicMaterial({color:0x7fe3d6, transparent:true, opacity:0.9}));
+core.position.set(0,0.34,0.30); torso.add(core);
+const coreGlow = new THREE.PointLight(0x7fe3d6, 0.5, 5, 2);
+coreGlow.position.copy(core.position); torso.add(coreGlow);
+
+const head = new THREE.Group(); head.position.y = 0.72; torso.add(head);
+const skull = inked(new THREE.SphereGeometry(0.225,14,12), FUR);
+skull.scale.set(1,0.96,1.12); head.add(skull);
+const muzzle = inked(new THREE.CylinderGeometry(0.055,0.125,0.30,9), FURD);
+muzzle.rotation.x = Math.PI/2; muzzle.position.set(0,-0.03,0.26); head.add(muzzle);
+const nose = new THREE.Mesh(new THREE.SphereGeometry(0.045,8,8),
+  new THREE.MeshBasicMaterial({color:0x0a121a}));
+nose.position.set(0,-0.03,0.40); head.add(nose);
+const eyeGeo = new THREE.SphereGeometry(0.05,10,9);
+const eyeMat = new THREE.MeshBasicMaterial({color:0x0a121a});
+const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.115,0.07,0.185); head.add(eyeL);
+const eyeR = eyeL.clone(); eyeR.position.x = 0.115; head.add(eyeR);
+const earGeo = new THREE.ConeGeometry(0.10,0.42,8);
+const earL = inked(earGeo, FUR);
+earL.position.set(-0.135,0.28,-0.02); earL.rotation.z = 0.30; earL.rotation.x = -0.14; head.add(earL);
+const earR = inked(earGeo, FUR);
+earR.position.set(0.135,0.28,-0.02); earR.rotation.z = -0.30; earR.rotation.x = -0.14; head.add(earR);
+
+function buildArm(side){
+  const shoulder = new THREE.Group();
+  shoulder.position.set(0.375*side, 0.47, 0.075);
+  const pad = inked(new THREE.SphereGeometry(0.135,12,10), COAT);
+  pad.scale.set(1,0.8,1); shoulder.add(pad);
+  const upper = inked(new THREE.CylinderGeometry(0.088,0.074,0.30,8), FURD);
+  upper.position.y = -0.19; shoulder.add(upper);
+  const elbow = new THREE.Group(); elbow.position.y = -0.34; shoulder.add(elbow);
+  const cuff = inked(new THREE.CylinderGeometry(0.086,0.086,0.07,8), COAT);
+  cuff.position.y = -0.02; elbow.add(cuff);
+  const fore = inked(new THREE.CylinderGeometry(0.072,0.06,0.28,8), FUR);
+  fore.position.y = -0.18; elbow.add(fore);
+  const paw = inked(new THREE.SphereGeometry(0.092,10,8), FURD);
+  paw.position.y = -0.35; elbow.add(paw);
+  torso.add(shoulder);
+  return shoulder;
+}
+const armL = buildArm(-1), armR = buildArm(1);
+const spark = new THREE.Mesh(new THREE.SphereGeometry(0.115,12,10),
+  new THREE.MeshBasicMaterial({color:0x7fe3d6, transparent:true, opacity:0.9}));
+spark.position.set(0,-0.69,0.05); armR.add(spark);
+
+function buildLeg(side){
+  const hip = new THREE.Group();
+  hip.position.set(0.145*side, 0.72, 0);
+  const thigh = inked(new THREE.CylinderGeometry(0.105,0.085,0.34,8), FUR);
+  thigh.position.y = -0.17; thigh.rotation.x = 0.34; hip.add(thigh);
+  const knee = new THREE.Group(); knee.position.set(0,-0.30,0.10); hip.add(knee);
+  const shin = inked(new THREE.CylinderGeometry(0.072,0.055,0.30,8), FURD);
+  shin.position.y = -0.15; shin.rotation.x = -0.42; knee.add(shin);
+  const wrap = inked(new THREE.CylinderGeometry(0.082,0.066,0.17,8), COAT);
+  wrap.position.y = -0.16; wrap.rotation.x = -0.42; knee.add(wrap);
+  const foot = inked(new THREE.BoxGeometry(0.15,0.085,0.30), FURD);
+  foot.position.set(0,-0.30,0.06); knee.add(foot);
+  rig.add(hip);
+  return hip;
+}
+const legL = buildLeg(-1), legR = buildLeg(1);
+
+const tail = [];
+let tailParent = rig;
+for(let i=0;i<6;i++){
+  const seg = new THREE.Group();
+  seg.position.set(0, i===0?0.78:0, i===0?-0.22:-0.155);
+  const m = inked(new THREE.SphereGeometry(0.115-i*0.013,10,8), i>3?FURD:FUR);
+  m.scale.set(1,1,1.35);
+  seg.add(m); tailParent.add(seg); tail.push(seg); tailParent = seg;
+}
+
+
+/* ==========================================================
+   4b. SOUND — everything is synthesised at runtime, so the
+   file stays self-contained and nothing waits on a download.
+   Browsers refuse audio before a gesture, so init() is called
+   from the start button, never on load.
+   ========================================================== */
+const AUDIO = (function(){
+  let ctx=null, master=null, musicBus=null, ambBus=null, sfxBus=null;
+  let noiseBuf=null, muted=false, ready=false;
+  let cfg=null, boss=false;
+  let step=0, nextNote=0, ambNodes=[];
+
+  function init(){
+    if(ready) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    try { ctx = new AC(); } catch(e){ return; }
+    master  = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
+    musicBus= ctx.createGain(); musicBus.gain.value = 0.30; musicBus.connect(master);
+    ambBus  = ctx.createGain(); ambBus.gain.value  = 0.14; ambBus.connect(master);
+    sfxBus  = ctx.createGain(); sfxBus.gain.value  = 0.42; sfxBus.connect(master);
+    // one second of white noise, reused for rain, wind, furnace and crackle
+    const n = ctx.sampleRate;
+    noiseBuf = ctx.createBuffer(1, n, n);
+    const d = noiseBuf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+    ready = true;
+  }
+  function resume(){ if(ctx && ctx.state === "suspended") ctx.resume(); }
+  function suspend(){ if(ctx && ctx.state === "running") ctx.suspend(); }
+
+  function env(node, t, a, hold, r, peak){
+    const g = node.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(0.0001, t);
+    g.exponentialRampToValueAtTime(Math.max(0.0001,peak), t+a);
+    g.setValueAtTime(Math.max(0.0001,peak), t+a+hold);
+    g.exponentialRampToValueAtTime(0.0001, t+a+hold+r);
+  }
+  function tone(freq, t, dur, type, peak, bus, detune){
+    if(!ready) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(freq, t);
+    if(detune) o.detune.setValueAtTime(detune, t);
+    o.connect(g); g.connect(bus || sfxBus);
+    env(g, t, Math.min(0.02,dur*0.2), dur*0.25, dur*0.7, peak);
+    o.start(t); o.stop(t + dur + 0.08);
+    return o;
+  }
+  function sweep(f0, f1, t, dur, type, peak, bus){
+    if(!ready) return;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type || "sine";
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(1,f1), t+dur);
+    o.connect(g); g.connect(bus || sfxBus);
+    env(g, t, 0.008, dur*0.3, dur*0.6, peak);
+    o.start(t); o.stop(t+dur+0.05);
+  }
+  function noise(t, dur, f0, f1, q, peak, bus){
+    if(!ready) return;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass";
+    bp.frequency.setValueAtTime(f0, t);
+    if(f1) bp.frequency.exponentialRampToValueAtTime(Math.max(20,f1), t+dur);
+    bp.Q.value = q || 1;
+    const g = ctx.createGain();
+    src.connect(bp); bp.connect(g); g.connect(bus || sfxBus);
+    env(g, t, 0.006, dur*0.25, dur*0.7, peak);
+    src.start(t); src.stop(t+dur+0.05);
+  }
+
+  /* ---------- one-shots ---------- */
+  const SFX = {
+    jump:      ()=>{ const t=ctx.currentTime; sweep(300,620,t,0.16,"triangle",0.30); },
+    doubleJump:()=>{ const t=ctx.currentTime; sweep(480,940,t,0.18,"triangle",0.26);
+                     tone(1180,t+0.03,0.12,"sine",0.10); },
+    land:      ()=>{ const t=ctx.currentTime; noise(t,0.10,220,120,0.9,0.20); },
+    swing:     ()=>{ const t=ctx.currentTime; noise(t,0.13,900,300,1.6,0.18); },
+    hitEnemy:  ()=>{ const t=ctx.currentTime; noise(t,0.12,420,160,1.2,0.30);
+                     tone(140,t,0.14,"square",0.16); },
+    deflect:   ()=>{ const t=ctx.currentTime; tone(1500,t,0.09,"square",0.13);
+                     tone(2100,t+0.04,0.07,"square",0.08); },
+    kill:      ()=>{ const t=ctx.currentTime; sweep(520,90,t,0.34,"sawtooth",0.24);
+                     noise(t,0.26,700,180,0.8,0.20); },
+    pickup:    ()=>{ const t=ctx.currentTime;
+                     [0,4,7,12].forEach((n,i)=> tone(523.25*Math.pow(2,n/12), t+i*0.055, 0.20, "sine", 0.17)); },
+    hurt:      ()=>{ const t=ctx.currentTime; sweep(300,110,t,0.28,"sawtooth",0.26);
+                     noise(t,0.16,300,120,0.7,0.18); },
+    respawn:   ()=>{ const t=ctx.currentTime;
+                     [0,3,7].forEach((n,i)=> tone(196*Math.pow(2,n/12), t+i*0.10, 0.45, "sine", 0.16)); },
+    seal:      ()=>{ const t=ctx.currentTime; noise(t,0.5,1600,220,0.7,0.34);
+                     sweep(180,60,t,0.7,"sawtooth",0.26);
+                     [0,7,12].forEach((n,i)=> tone(220*Math.pow(2,n/12), t+i*0.07, 0.6, "triangle", 0.14)); },
+    gate:      ()=>{ const t=ctx.currentTime; sweep(70,150,t,1.3,"sawtooth",0.24);
+                     noise(t,1.3,300,900,0.6,0.16); },
+    blip:      ()=>{ const t=ctx.currentTime; tone(1400+Math.random()*260,t,0.032,"square",0.045); },
+    /* one cast sound per verb, each shaped like the verb */
+    draw:      ()=>{ const t=ctx.currentTime; sweep(160,700,t,0.42,"sine",0.20);
+                     noise(t,0.42,300,1500,0.8,0.14); },
+    still:     ()=>{ const t=ctx.currentTime; sweep(1400,320,t,0.30,"sine",0.20);
+                     tone(1800,t,0.10,"triangle",0.12); noise(t+0.04,0.22,3000,900,2.2,0.12); },
+    forge:     ()=>{ const t=ctx.currentTime; noise(t,0.34,180,520,0.6,0.22);
+                     sweep(90,190,t,0.34,"sawtooth",0.16); },
+    grow:      ()=>{ const t=ctx.currentTime; sweep(240,760,t,0.50,"triangle",0.17);
+                     noise(t,0.50,900,2200,1.4,0.10); },
+    arc:       ()=>{ const t=ctx.currentTime; noise(t,0.16,2600,700,1.0,0.30);
+                     sweep(1600,220,t,0.20,"square",0.14);
+                     tone(90,t+0.02,0.18,"square",0.14); }
+  };
+  function sfx(name){
+    if(!ready || muted) return;
+    const f = SFX[name];
+    if(!f) return;
+    try { resume(); f(); } catch(e){}
+  }
+
+  /* ---------- ambience: one continuous bed per world ---------- */
+  function stopAmb(){
+    const t = ctx ? ctx.currentTime : 0;
+    ambNodes.forEach(n=>{
+      // stopping a node twice, or before it started, throws. Guard both.
+      try{ if(n.stop && !n.__stopped){ n.__stopped = true; n.stop(t); } }catch(e){}
+      try{ n.disconnect(); }catch(e){}
+    });
+    ambNodes = [];
+  }
+  // per-ambience level. Rain sits under everything else on purpose:
+  // it plays constantly, so it has to survive being heard for an hour.
+  const AMB_LEVEL = {rain:0.20, wind:0.42, furnace:0.50, forest:0.20, static:0.16};
+
+  function startAmb(kind){
+    if(!ready) return;
+    stopAmb();
+    const t = ctx.currentTime;
+    if(kind === "none") return;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+    const filt = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    src.connect(filt); filt.connect(g); g.connect(ambBus);
+    if(kind === "rain"){
+      // roll the harsh top off: rain is a wash, not a hiss
+      filt.type="lowpass"; filt.frequency.value=820; filt.Q.value=0.4;
+      const hp = ctx.createBiquadFilter();
+      hp.type="highpass"; hp.frequency.value=180;   // drop the rumble too
+      filt.disconnect(); filt.connect(hp); hp.connect(g);
+      g.gain.value = AMB_LEVEL.rain;
+      // a slow swell so the ear stops tracking it
+      const lfo = ctx.createOscillator(), lg = ctx.createGain();
+      lfo.frequency.value = 0.055; lg.gain.value = AMB_LEVEL.rain*0.35;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start(t); ambNodes.push(lfo);
+    } else if(kind === "wind"){
+      filt.type="lowpass"; filt.frequency.value=420; g.gain.value=AMB_LEVEL.wind;
+      const lfo = ctx.createOscillator(), lg = ctx.createGain();
+      lfo.frequency.value=0.09; lg.gain.value=220;
+      lfo.connect(lg); lg.connect(filt.frequency); lfo.start(t); ambNodes.push(lfo);
+    } else if(kind === "furnace"){
+      filt.type="lowpass"; filt.frequency.value=220; g.gain.value=AMB_LEVEL.furnace;
+      const rum = ctx.createOscillator(), rg = ctx.createGain();
+      rum.type="sine"; rum.frequency.value=41; rg.gain.value=0.10;
+      rum.connect(rg); rg.connect(ambBus); rum.start(t); ambNodes.push(rum);
+    } else if(kind === "forest"){
+      filt.type="bandpass"; filt.frequency.value=3200; filt.Q.value=1.2; g.gain.value=AMB_LEVEL.forest;
+      const hum = ctx.createOscillator(), hg = ctx.createGain();
+      hum.type="sine"; hum.frequency.value=58; hg.gain.value=0.07;
+      hum.connect(hg); hg.connect(ambBus); hum.start(t); ambNodes.push(hum);
+    } else if(kind === "static"){
+      filt.type="highpass"; filt.frequency.value=2200; g.gain.value=AMB_LEVEL.static;
+      const lfo = ctx.createOscillator(), lg = ctx.createGain();
+      lfo.frequency.value=0.23; lg.gain.value=0.14;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start(t); ambNodes.push(lfo);
+    }
+    src.start(t); ambNodes.push(src);
+  }
+
+  /* ---------- music: a lookahead sequencer driven by the game loop ---------- */
+  function setWorld(w){
+    cfg = w.audio; boss = false; step = 0;
+    if(!ready) return;
+    nextNote = ctx.currentTime + 0.1;
+    startAmb(cfg.amb);
+  }
+  function setBoss(on){
+    boss = on; step = 0;
+    if(ready) nextNote = ctx.currentTime + 0.05;
+  }
+  function scheduleStep(t){
+    const sc = cfg.scale, root = cfg.root * (boss ? 0.5 : 1);
+    const bar = step % 16;
+
+    // bass: the world's floor note, doubled and slowed under a boss
+    if(bar % 4 === 0){
+      tone(root/2, t, boss?1.05:0.85, boss?"sawtooth":"triangle", boss?0.22:0.15, musicBus);
+    }
+    // pad: a held third, moved every half bar
+    if(bar % 8 === 0){
+      const d = sc[(step/8|0) % sc.length];
+      tone(root*Math.pow(2,d/12), t, 1.8, cfg.pad, 0.09, musicBus, 5);
+      tone(root*Math.pow(2,d/12), t, 1.8, cfg.pad, 0.09, musicBus, -5);
+    }
+    // melody: sparse, and it thins out rather than thickens under pressure
+    const density = boss ? cfg.bossDensity : cfg.density;
+    if(Math.random() < density){
+      const n = sc[(Math.random()*sc.length)|0];
+      const oct = Math.random() < 0.3 ? 4 : 2;
+      tone(root*oct*Math.pow(2,n/12), t, boss?0.30:0.5, cfg.lead, boss?0.13:0.10, musicBus);
+    }
+    // boss pulse: a heartbeat the world themes never have
+    if(boss && bar % 2 === 0) noise(t, 0.14, 90, 55, 0.8, 0.16, musicBus);
+    step++;
+  }
+  function tick(){
+    if(!ready || muted || !cfg) return;
+    const spb = 60 / (boss ? cfg.bossTempo : cfg.tempo) / 4;
+    let guard = 0;
+    while(nextNote < ctx.currentTime + 0.25 && guard++ < 32){
+      try { scheduleStep(nextNote); } catch(e){}
+      nextNote += spb;
+    }
+  }
+  // three steps rather than a slider: full, quiet, off
+  const LEVELS = [0.85, 0.42, 0];
+  let levelIdx = 0;
+  function cycleVolume(){
+    levelIdx = (levelIdx + 1) % LEVELS.length;
+    muted = LEVELS[levelIdx] === 0;
+    if(master) master.gain.setTargetAtTime(LEVELS[levelIdx], ctx.currentTime, 0.06);
+    return ["Sound: full", "Sound: quiet", "Sound: off"][levelIdx];
+  }
+  function volumeLabel(){ return ["Sound","Quiet","Muted"][levelIdx]; }
+
+  function toggleMute(){
+    muted = !muted;
+    if(master) master.gain.setTargetAtTime(muted ? 0 : 0.85, ctx.currentTime, 0.05);
+    return muted;
+  }
+  function isMuted(){ return muted; }
+  function stop(){ stopAmb(); }
+
+  return {init, sfx, setWorld, setBoss, tick, toggleMute, isMuted, stop, resume, suspend,
+          cycleVolume, volumeLabel, isReady:()=>ready};
+})();
+
+/* ==========================================================
+   5. MAGIC — every verb you have ever stolen, usable anywhere
+   ========================================================== */
+const MAGIC = {
+  draw: {
+    name:"Draw", color:0x7fe3d6, mode:"hold",
+    blurb:"Pull the water up and stand on it."
+  },
+  still: {
+    name:"Still", color:0x9fc8e8, mode:"tap",
+    blurb:"Stop what moves. What stops becomes floor."
+  },
+  forge: {
+    name:"Forge", color:0xff7a2f, mode:"hold",
+    blurb:"Heat it and it will move for you. Let go and it sets."
+  },
+  grow: {
+    name:"Grow", color:0x9fe06a, mode:"hold",
+    blurb:"Run a vine out from a bud and walk across it."
+  },
+  arc: {
+    name:"Arc", color:0xc9a6ff, mode:"tap",
+    blurb:"Become current. Jump to any rod you can see."
+  }
+};
+function learn(id){
+  if(player.magics.indexOf(id) < 0) player.magics.push(id);
+  player.magic = id;
+  paintSatchel();
+}
+function swapMagic(){
+  if(player.magics.length < 2) return;
+  const i = player.magics.indexOf(player.magic);
+  player.magic = player.magics[(i+1) % player.magics.length];
+  const m = MAGIC[player.magic];
+  core.material.color.setHex(m.color);
+  coreGlow.color.setHex(m.color);
+  spark.material.color.setHex(m.color);
+  castBtn.textContent = m.name;
+  toast(m.name + " — " + m.blurb, 2.2);
+  paintSatchel();
+}
+
+/* ---- Draw: raise a column of water ---- */
+const CYL = new THREE.CylinderGeometry(1,1,1,18,1,true);
+const CAP = new THREE.CylinderGeometry(1,1,0.12,18);
+function spawnColumn(x,z){
+  const grp = new THREE.Group();
+  const shaft = new THREE.Mesh(CYL, matColumn.clone());
+  const cap = new THREE.Mesh(CAP, matColumn.clone());
+  cap.material.opacity = 0.85;
+  grp.add(shaft, cap);
+  grp.position.set(x, CFG.waterLevel, z);
+  worldGroup.add(grp);
+  const c = {grp, shaft, cap, x, z, h:0.4, life:CFG.columnLife, col:null};
+  columns.push(c); refreshColumn(c);
+  return c;
+}
+function refreshColumn(c){
+  const r = CFG.columnRadius;
+  c.shaft.scale.set(r, c.h, r); c.shaft.position.y = c.h/2;
+  c.cap.scale.set(r,1,r); c.cap.position.y = c.h;
+  if(!c.col){
+    c.col = {min:new THREE.Vector3(), max:new THREE.Vector3(), tag:"column"};
+    colliders.push(c.col);
+  }
+  c.col.min.set(c.x-r, CFG.waterLevel, c.z-r);
+  c.col.max.set(c.x+r, CFG.waterLevel+c.h, c.z+r);
+}
+function killColumn(c){
+  worldGroup.remove(c.grp);
+  let i = colliders.indexOf(c.col); if(i>=0) colliders.splice(i,1);
+  i = columns.indexOf(c); if(i>=0) columns.splice(i,1);
+}
+function clearColumns(){ while(columns.length) killColumn(columns[0]); holding = null; }
+
+// Is this spot open flood, or is there something already standing there?
+function overWater(x, z){
+  for(const b of colliders){
+    if(b.tag === "bound" || b.tag === "column") continue;
+    if(x > b.min.x-0.6 && x < b.max.x+0.6 &&
+       z > b.min.z-0.6 && z < b.max.z+0.6 &&
+       b.max.y > CFG.waterLevel - 0.4) return false;
+  }
+  return true;
+}
+
+/* ---- Still: stop a moving thing and stand on it ---- */
+const DRIFT_GEO = new THREE.IcosahedronGeometry(0.85,0);
+function drifter(x,y,z,ax,ay,az,speed,scale){
+  const g = inked(DRIFT_GEO, W.driftColor||0xdfe9f2);
+  g.scale.setScalar(scale||1);
+  g.position.set(x,y,z);
+  worldGroup.add(g);
+  const d = {g, home:new THREE.Vector3(x,y,z), amp:new THREE.Vector3(ax,ay,az),
+             speed:speed||0.6, t:Math.random()*9, frozen:0, col:null, r:0.85*(scale||1)};
+  drifters.push(d);
+  return d;
+}
+function freezeDrifter(d){
+  if(d.frozen > 0) return false;
+  d.frozen = CFG.stillTime;
+  d.g.userData.fill.material.color.setHex(0xcfe4f6);
+  ringBurst(d.g.position.clone());
+  if(!d.col){
+    d.col = {min:new THREE.Vector3(), max:new THREE.Vector3(), tag:"frozen"};
+    colliders.push(d.col);
+  }
+  return true;
+}
+function thawDrifter(d){
+  d.frozen = 0;
+  d.g.userData.fill.material.color.setHex(W.driftColor||0xdfe9f2);
+  const i = colliders.indexOf(d.col); if(i>=0) colliders.splice(i,1);
+  d.col = null;
+}
+function driftBox(d){
+  if(!d.col) return;
+  const p = d.g.position, r = d.r*0.82;
+  d.col.min.set(p.x-r,p.y-r,p.z-r);
+  d.col.max.set(p.x+r,p.y+r,p.z+r);
+}
+
+/* ---- Forge: heat cold slag and it climbs for you ---- */
+const forges = [];
+function forgeNode(x,y,z,maxH){
+  const g = new THREE.Group();
+  const col = inked(new THREE.CylinderGeometry(1.05,1.25,1,10), 0x4a3b38);
+  g.add(col);
+  const cap = inked(new THREE.CylinderGeometry(1.05,1.05,0.22,10), 0x6b4a3a);
+  g.add(cap);
+  g.position.set(x,y,z);
+  worldGroup.add(g);
+  const f = {g, col, cap, x, y, z, h:0.5, max:maxH||CFG.forgeMax,
+             heat:0, cool:0, col3:null};
+  forges.push(f);
+  refreshForge(f);
+  return f;
+}
+function refreshForge(f){
+  f.col.scale.set(1, f.h, 1);
+  f.col.position.y = f.h/2;
+  f.cap.scale.set(1,1,1);
+  f.cap.position.y = f.h;
+  const glow = Math.min(1, f.heat);
+  const c = new THREE.Color(0x4a3b38).lerp(new THREE.Color(0xff7a2f), glow);
+  f.col.userData.fill.material.color.copy(c);
+  f.cap.userData.fill.material.color.copy(
+    new THREE.Color(0x6b4a3a).lerp(new THREE.Color(0xffc25e), glow));
+  if(!f.col3){
+    f.col3 = {min:new THREE.Vector3(), max:new THREE.Vector3(), tag:"forge"};
+    colliders.push(f.col3);
+  }
+  f.col3.min.set(f.x-1.15, f.y, f.z-1.15);
+  f.col3.max.set(f.x+1.15, f.y+f.h, f.z+1.15);
+}
+
+/* ---- Grow: run a vine out from a bud and cross on it ----
+   Draw builds up, Forge builds up. This one builds outward, so
+   the shape of a Verdance route is a bridge, not a pillar. */
+const buds = [];
+const BUD_GEO = new THREE.SphereGeometry(0.42, 12, 10);
+function bud(x,y,z,dx,dz,maxLen){
+  const g = inked(BUD_GEO, 0x5d7a3a);
+  g.position.set(x,y,z);
+  worldGroup.add(g);
+  const vine = new THREE.Mesh(BOX, new THREE.MeshToonMaterial({
+    color:0x7cb342, gradientMap:RAMP
+  }));
+  vine.castShadow = true; vine.receiveShadow = true;
+  vine.visible = false;
+  worldGroup.add(vine);
+  const b = {g, vine, x, y, z, dx, dz, len:0, max:maxLen||10, life:0, col:null};
+  buds.push(b);
+  return b;
+}
+function refreshVine(b){
+  if(b.len <= 0.1){
+    b.vine.visible = false;
+    if(b.col){ const i=colliders.indexOf(b.col); if(i>=0) colliders.splice(i,1); b.col=null; }
+    return;
+  }
+  b.vine.visible = true;
+  const w = CFG.growWidth;
+  const cx = b.x + b.dx*b.len/2, cz = b.z + b.dz*b.len/2;
+  b.vine.position.set(cx, b.y, cz);
+  b.vine.scale.set(b.dx ? b.len : w, 0.42, b.dz ? b.len : w);
+  if(!b.col){
+    b.col = {min:new THREE.Vector3(), max:new THREE.Vector3(), tag:"vine"};
+    colliders.push(b.col);
+  }
+  const hx = (b.dx ? b.len : w)/2, hz = (b.dz ? b.len : w)/2;
+  b.col.min.set(cx-hx, b.y-0.21, cz-hz);
+  b.col.max.set(cx+hx, b.y+0.21, cz+hz);
+}
+
+/* ---- Arc: stop being a body for a moment ----
+   The other four build something and then you walk on it.
+   This one skips the walking. Rods are the only fixed points
+   in a sky that came apart. */
+const rods = [];
+const ROD_GEO = new THREE.CylinderGeometry(0.10, 0.16, 2.2, 7);
+function rod(x,y,z){
+  const g = inked(ROD_GEO, 0x6b6480);
+  g.position.set(x, y+1.1, z);
+  worldGroup.add(g);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.24,12,10),
+    new THREE.MeshBasicMaterial({color:0xc9a6ff}));
+  tip.position.set(x, y+2.3, z);
+  worldGroup.add(tip);
+  const r = {g, tip, pos:new THREE.Vector3(x, y+2.3, z), charge:0};
+  rods.push(r);
+  return r;
+}
+function arcTo(r){
+  player.pos.set(r.pos.x, r.pos.y + 0.4, r.pos.z);
+  player.vel.set(0,0,0);
+  player.jumps = 0;
+  player.invuln = Math.max(player.invuln, 0.35);
+  r.charge = 1;
+  ringBurst(r.pos.clone());
+  // arriving as current blows anything static off the rod
+  for(const e of enemies){
+    if(e.dead) continue;
+    if(e.pos.distanceTo(r.pos) < CFG.arcBlastRadius){
+      e.hp -= 2; e.hurt = 0.3;
+      if(e.hp <= 0){
+        e.dead = true; worldGroup.remove(e.g);
+        ringBurst(e.pos.clone().setY(e.pos.y+1));
+      }
+    }
+  }
+}
+
+/* ==========================================================
+   6. INPUT
+   ========================================================== */
+const keys = {};
+let mouseL=false, mouseR=false, locked=false, dragging=false;
+let castHeld=false, noise=0, creepTouch=false, linger=0;
+let lookIdle = 0;                      // time since the player last steered
+let autoFollow = COARSE;               // on by default where it is needed most
+
+// shortest way round the circle, so the camera never takes the long way
+function angleTo(from, to){
+  let d = (to - from) % (Math.PI*2);
+  if(d >  Math.PI) d -= Math.PI*2;
+  if(d < -Math.PI) d += Math.PI*2;
+  return d;
+}
+function recenter(){
+  const spd = Math.hypot(player.vel.x, player.vel.z);
+  const yaw = spd > 0.6 ? Math.atan2(-player.vel.x, -player.vel.z) : rig.rotation.y + Math.PI;
+  player.yaw = yaw;
+  lookIdle = 0;
+}
+
+addEventListener("keydown", e=>{
+  keys[e.code]=true;
+  if(e.code==="Space"){ player.buffered = CFG.jumpBuffer; e.preventDefault(); }
+  if(e.code==="KeyQ" && !dlg.on) swapMagic();
+  if(e.code==="KeyM") toast(AUDIO.cycleVolume(), 1.4);
+  if(e.code==="KeyH" || e.code==="Escape"){ helpOpen ? closeHelp() : openHelp(); e.preventDefault(); }
+  if(e.code==="KeyC" && !dlg.on){
+    autoFollow = !autoFollow;
+    toast(autoFollow ? "Camera follows you automatically" : "Camera stays where you put it", 2);
+  }
+  if(e.code==="KeyR" && !dlg.on) recenter();
+  if(e.code==="KeyE" && !dlg.on && inRange){ talk(); return; }
+  if(dlg.on && (e.code==="Space"||e.code==="Enter"||e.code==="KeyE")){ dlgAdvance(); e.preventDefault(); }
+});
+addEventListener("keyup", e=>{ keys[e.code]=false; });
+addEventListener("mousedown", e=>{
+  dragging = true;
+  if(e.button===0) mouseL=true;
+  if(e.button===2) mouseR=true;
+});
+addEventListener("mouseup", e=>{
+  dragging = false;
+  if(e.button===0) mouseL=false;
+  if(e.button===2){ mouseR=false; if(holding) holding = null; }
+});
+addEventListener("contextmenu", e=>e.preventDefault());
+addEventListener("mousemove", e=>{
+  if(!locked && !dragging) return;
+  player.yaw   -= e.movementX * CFG.mouseSens;
+  player.pitch -= e.movementY * CFG.mouseSens;
+  player.pitch = Math.max(-1.15, Math.min(0.72, player.pitch));
+  tutLooked += Math.abs(e.movementX) * 0.004;
+  if(Math.abs(e.movementX) > 0.5) lookIdle = 0;
+});
+document.addEventListener("pointerlockchange", ()=>{
+  locked = document.pointerLockElement === renderer.domElement;
+});
+
+const isTouch = COARSE;
+// Touch aiming is coarse by nature: widen every targeting cone rather
+// than asking a thumb to do a mouse's job.
+CFG.aimAssist = isTouch ? 2.2 : 1;
+const touch = {mx:0,mz:0,on:false,stickId:null,lookId:null,lx:0,ly:0,ox:0,oy:0};
+const stickEl = document.getElementById("stick");
+const nubEl   = document.getElementById("stickNub");
+const touchEl = document.getElementById("touch");
+const castBtn = document.getElementById("btnCast");
+const swapBtn = document.getElementById("btnSwap");
+const creepBtn= document.getElementById("btnCreep");
+const talkBtn = document.getElementById("btnTalk");
+
+if(isTouch){
+  touchEl.classList.add("on");
+  renderer.domElement.addEventListener("pointerdown", e=>{
+    if(e.clientX < innerWidth*0.45 && touch.stickId===null){
+      touch.stickId=e.pointerId; touch.ox=e.clientX; touch.oy=e.clientY; touch.on=true;
+      stickEl.style.left=e.clientX+"px"; stickEl.style.top=e.clientY+"px"; stickEl.style.opacity=1;
+      nubEl.style.transform="translate(-50%,-50%)";
+    } else if(touch.lookId===null){
+      touch.lookId=e.pointerId; touch.lx=e.clientX; touch.ly=e.clientY;
+      touch.lookStart=e.clientX; touch.lookT=performance.now(); touch.lookMoved=0;
+    }
+  });
+  addEventListener("pointermove", e=>{
+    if(e.pointerId===touch.stickId){
+      const dx=e.clientX-touch.ox, dy=e.clientY-touch.oy;
+      const r=Math.min(52,Math.hypot(dx,dy)), a=Math.atan2(dy,dx);
+      const nx=Math.cos(a)*r, ny=Math.sin(a)*r;
+      nubEl.style.transform="translate(calc(-50% + "+nx+"px), calc(-50% + "+ny+"px))";
+      touch.mx=nx/52; touch.mz=ny/52;
+    } else if(e.pointerId===touch.lookId){
+      tutLooked += Math.abs(e.clientX-touch.lx)*0.004;
+      if(Math.abs(e.clientX-touch.lx) > 0.5) lookIdle = 0;
+      touch.lookMoved += Math.abs(e.clientX-touch.lx) + Math.abs(e.clientY-touch.ly);
+      player.yaw   -= (e.clientX-touch.lx)*CFG.touchSens;
+      player.pitch -= (e.clientY-touch.ly)*CFG.touchSens*0.8;
+      player.pitch = Math.max(-1.15, Math.min(0.72, player.pitch));
+      touch.lx=e.clientX; touch.ly=e.clientY;
+    }
+  });
+  function endPointer(e){
+    if(e.pointerId===touch.stickId){
+      touch.stickId=null; touch.on=false; touch.mx=0; touch.mz=0; stickEl.style.opacity=0;
+    }
+    if(e.pointerId===touch.lookId){
+      // a tap rather than a drag means "put the camera behind me"
+      if(touch.lookMoved < 12 && performance.now() - touch.lookT < 260) recenter();
+      touch.lookId=null;
+    }
+  }
+  addEventListener("pointerup", endPointer);
+  addEventListener("pointercancel", endPointer);
+
+  const bind=(id,down,up)=>{
+    const el=document.getElementById(id);
+    el.addEventListener("pointerdown", e=>{
+      e.stopPropagation(); e.preventDefault();
+      // hold the pointer even if the thumb slides off the button
+      if(el.setPointerCapture) try{ el.setPointerCapture(e.pointerId); }catch(err){}
+      down();
+    });
+    const release = e=>{ if(e) e.stopPropagation(); if(up) up(); };
+    el.addEventListener("pointerup", release);
+    el.addEventListener("pointercancel", release);
+    el.addEventListener("lostpointercapture", ()=>{ if(up) up(); });
+    // a touch that ends while the page is hidden must not stick
+    el.addEventListener("contextmenu", e=> e.preventDefault());
+  };
+  bind("btnJump", ()=>{ player.buffered = CFG.jumpBuffer; });
+  bind("btnHit",  ()=>{ mouseL=true; }, ()=>{ mouseL=false; });
+  bind("btnCast", ()=>{ mouseR=true; }, ()=>{ mouseR=false; holding=null; });
+  bind("btnCreep",()=>{ creepTouch=true; }, ()=>{ creepTouch=false; });
+  bind("btnSwap", ()=>{ swapMagic(); });
+  bind("btnMute", ()=>{
+    AUDIO.cycleVolume();
+    document.getElementById("btnMute").textContent = AUDIO.volumeLabel();
+  });
+  bind("btnHelp", ()=>{ helpOpen ? closeHelp() : openHelp(); });
+  bind("btnCam", ()=>{
+    autoFollow = !autoFollow;
+    document.getElementById("btnCam").textContent = autoFollow ? "Cam" : "Free";
+    toast(autoFollow ? "Camera follows you automatically" : "Camera stays where you put it", 2);
+  });
+}
+addEventListener("pointerdown", ()=>{ if(dlg.on) dlgAdvance(); });
+talkBtn.addEventListener("pointerdown", e=>{ e.stopPropagation(); e.preventDefault(); talk(); });
+
+/* ==========================================================
+   7. COLLISION — per-axis AABB, cheap and predictable
+   ========================================================== */
+const R = CFG.playerRadius, H = CFG.playerHeight;
+function overlaps(p,b){
+  return p.x+R > b.min.x && p.x-R < b.max.x &&
+         p.y+H > b.min.y && p.y   < b.max.y &&
+         p.z+R > b.min.z && p.z-R < b.max.z;
+}
+function resolveAxis(axis){
+  for(const b of colliders){
+    if(!overlaps(player.pos,b)) continue;
+    if(axis==="y"){
+      if(player.vel.y <= 0){
+        player.pos.y = b.max.y; player.vel.y = 0;
+        player.grounded = true; player.jumps = 0; player.coyote = CFG.coyoteTime;
+      } else { player.pos.y = b.min.y - H; player.vel.y = 0; }
+    } else if(axis==="x"){
+      player.pos.x = player.vel.x>0 ? b.min.x-R : b.max.x+R; player.vel.x = 0;
+    } else {
+      player.pos.z = player.vel.z>0 ? b.min.z-R : b.max.z+R; player.vel.z = 0;
+    }
+  }
+}
+
+/* ==========================================================
+   8. HUD
+   ========================================================== */
+const lifeEl = document.getElementById("life");
+for(let i=0;i<CFG.maxHealth;i++){
+  const f=document.createElement("div"); f.className="flame"; lifeEl.appendChild(f);
+}
+const flames   = [].slice.call(lifeEl.children);
+const tideFill = document.getElementById("tideFill");
+const mcEl     = document.getElementById("mc");
+const mcLbl    = document.getElementById("mcLbl");
+const reticle  = document.getElementById("reticle");
+const toastEl  = document.getElementById("toast");
+const earEl    = document.getElementById("ear");
+const earFill  = document.getElementById("earFill");
+const earLbl   = document.getElementById("earLbl");
+const satchel  = document.getElementById("satchel");
+const worldTag = document.getElementById("worldTag");
+let toastT = 0;
+
+function toast(msg, secs){
+  toastEl.textContent = msg; toastEl.classList.add("on"); toastT = secs||3;
+}
+function paintSatchel(){
+  satchel.innerHTML = "";
+  WORLDS.forEach(w=>{
+    const v = document.createElement("div");
+    v.className = "vial";
+    const held = player.magics.indexOf(w.magic) >= 0;
+    if(held){
+      v.classList.add("held");
+      v.style.color = "#" + MAGIC[w.magic].color.toString(16).padStart(6,"0");
+      if(player.magic === w.magic) v.classList.add("active");
+    }
+    satchel.appendChild(v);
+  });
+}
+function paintHUD(){
+  for(let i=0;i<flames.length;i++) flames[i].classList.toggle("out", i >= player.health);
+  tideFill.style.height = (player.mana/CFG.manaMax*100) + "%";
+  mcEl.textContent = collected;
+  if(W && W.sound){
+    const lv = Math.min(1, noise/9);
+    earFill.style.width = (lv*100)+"%";
+    earFill.style.background = lv>0.62 ? "#ff6a4a" : (lv>0.3 ? "#e8b06a" : "#eef2f6");
+    earLbl.textContent = lv>0.62 ? "Heard" : (lv>0.3 ? "Audible" : "Quiet");
+  }
+}
+
+/* ==========================================================
+   9. DIALOGUE
+   ========================================================== */
+const dlgEl   = document.getElementById("dialog");
+const dlgName = document.getElementById("dlgName");
+const dlgBody = document.getElementById("dlgBody");
+const dlgHint = document.getElementById("dlgHint");
+const carveEl = document.getElementById("carve");
+const dlg = {on:false, lines:[], i:0, shown:0, t:0, cb:null};
+
+function say(speaker, lines, cb){
+  dlg.on=true; dlg.lines=lines; dlg.i=0; dlg.shown=0; dlg.t=0; dlg.cb=cb||null;
+  dlgName.textContent = speaker;
+  dlgName.style.display = speaker ? "block" : "none";
+  dlgBody.textContent = "";
+  dlgEl.classList.add("on");
+  if(isTouch) touchEl.style.visibility = "hidden";
+}
+function closeDlg(){
+  dlg.on=false; dlgEl.classList.remove("on");
+  if(isTouch) touchEl.style.visibility = "visible";
+  const cb = dlg.cb; dlg.cb = null; if(cb) cb();
+}
+function dlgStep(dt){
+  if(!dlg.on) return;
+  const full = dlg.lines[dlg.i];
+  if(dlg.shown < full.length){
+    dlg.t += dt*52;
+    const was = dlg.shown;
+    dlg.shown = Math.min(full.length, Math.floor(dlg.t));
+    if(dlg.shown > was && dlg.shown % 3 === 0) AUDIO.sfx("blip");
+    dlgBody.textContent = full.slice(0, dlg.shown);
+    dlgHint.style.opacity = 0;
+  } else dlgHint.style.opacity = 0.5;
+}
+function dlgAdvance(){
+  if(!dlg.on) return;
+  const full = dlg.lines[dlg.i];
+  if(dlg.shown < full.length){
+    dlg.shown = full.length; dlg.t = full.length; dlgBody.textContent = full; return;
+  }
+  dlg.i++;
+  if(dlg.i >= dlg.lines.length){ closeDlg(); return; }
+  dlg.shown = 0; dlg.t = 0; dlgBody.textContent = "";
+}
+let carveT = 0;
+function carve(label, text){
+  carveEl.innerHTML = '<div class="rule"></div><span class="yr"></span><span class="bd"></span>';
+  const yr = carveEl.querySelector(".yr"), bd = carveEl.querySelector(".bd");
+  if(yr) yr.textContent = label;
+  if(bd) bd.textContent = text;
+  carveEl.classList.add("on");
+  carveT = 6.5;
+}
+
+/* ==========================================================
+   10. EFFECTS
+   ========================================================== */
+const rings = [];
+const ringGeo = new THREE.RingGeometry(0.3,0.42,26);
+ringGeo.rotateX(-Math.PI/2);
+function ringBurst(at){
+  const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+    color:(W&&W.accent)||0x7fe3d6, transparent:true, opacity:0.85, side:THREE.DoubleSide
+  }));
+  m.position.copy(at); scene.add(m);
+  rings.push({m,t:0});
+}
+function updateRings(dt){
+  for(let i=rings.length-1;i>=0;i--){
+    const r = rings[i]; r.t += dt;
+    const s = 1 + r.t*7;
+    r.m.scale.set(s,1,s);
+    r.m.material.opacity = Math.max(0, 0.85 - r.t*1.7);
+    if(r.t > 0.55){ scene.remove(r.m); rings.splice(i,1); }
+  }
+}
+
+/* ==========================================================
+   11. DAMAGE
+   ========================================================== */
+function hurt(n){
+  if(player.invuln > 0) return;
+  player.health -= n; player.invuln = 1.1;
+  AUDIO.sfx("hurt");
+  if(player.health <= 0) respawn();
+}
+function respawn(){
+  player.health = CFG.maxHealth;
+  player.pos.copy(player.spawn);
+  player.vel.set(0,0,0);
+  player.invuln = 1.5;
+  AUDIO.sfx("respawn");
+  toast(W.respawnLine || "You are put back where you started.", 2.4);
+}
+
+/* ==========================================================
+   12. WORLDS
+   Each world owns: look, level, weather particles, enemies,
+   its ten records, an NPC, and a boss. The engine owns the rest.
+   ========================================================== */
+const WORLDS = [
+{
+  id:"reach", name:"Sunken Reach", sub:"The Drowned Quarter",
+  magic:"draw", accent:0x7fe3d6, driftColor:0x9fd8e4,
+  fogColor:0x415a6b, fogDensity:0.021, deep:0x121e2b,
+  stone:0x7f93a1, stoneD:0x4d6270, soft:0x5b7382,
+  sunColor:0xc4d8dd, sunI:0.62, hemiSky:0x7f9fac, hemiGround:0x16262f, hemiI:0.30,
+  swim:true, sound:false, markLabel:"Tidemarks",
+  audio:{amb:"rain", root:73.42, scale:[0,3,5,7,10], pad:"sine", lead:"triangle",
+         tempo:74, bossTempo:96, density:0.16, bossDensity:0.26},
+  respawnLine:"The tide gives you back.",
+  spawn:[0,1.4,6], gate:[0,1.2,-39.4],
+  particle:{count:5200, speed:[46,26], len:[0.5,0.75], color:0xa9c8cf, opacity:0.38, sway:0},
+  groundColor:0x2a5064, groundOpacity:0.93, bedColor:0x0a1c22, bedY:-9,
+  surface:(x,z,t)=> Math.sin(x*0.16+t*1.4)*0.14 + Math.sin(z*0.21-t*1.05)*0.11
+                  + Math.sin((x+z)*0.09+t*0.6)*0.07,
+
+  opening:[
+    "Ninety years ago the city of Reach built a cistern to hold the weather.",
+    "They meant to ration the rain. Sell the dry days. Keep the rest in the dark beneath the plaza.",
+    "An order to stop was written. It was signed, sealed, and never delivered.",
+    "The rain has not stopped since.",
+    "You are Kite. You take weather that does not belong to you."
+  ],
+  lore:[
+    ["First mark","The cistern took its first rain. The council sold a dry afternoon for eleven silver and called it a beginning."],
+    ["Second mark","The Warden woke at the gate and took its post. It was built to hold the weather in. Nobody built it a way out."],
+    ["Third mark","Water past the second step. The council voted to raise the quay, and not to raise the question."],
+    ["Fourth mark","The bell tower flooded to the rope. Marrow rings it anyway, on the hour, for nobody."],
+    ["Fifth mark","We stopped selling dry days. There were none left in the ledger to sell."],
+    ["Sixth mark","Half the quarter went upriver. They left their doors unlocked, in case the weather came back."],
+    ["Seventh mark","The order to stop was written, signed and sealed. The courier drowned in this plaza with it inside her coat."],
+    ["Eighth mark","Water at the second floor sills. We cut this mark from a boat."],
+    ["Ninth mark","Last council. Three present. No quorum. The minutes record only the rain."],
+    ["Tenth mark","There was no one left to carve the eleventh."]
+  ],
+  markPos:[[6,2.3,0],[-7,2.4,-12],[7,2.8,-13],[0,4.0,-20],[0,2.2,-34],
+           [-13,7.0,-24],[13,7.4,-24],[-24,10.6,-18],[24,12.6,-20],[0,6.5,-38]],
+  allRead:["Ten marks read. Ninety years of water, counted.",
+           "The cistern gate opens below the cathedral. Something down there is still holding its post."],
+
+  npc:{
+    name:"Marrow", pos:[-5.6,1.2,1.4], radius:3.4,
+    first:[
+      "Ninety years I have rung that bell. Ninety years, and not one soul has come up the quay to hear it.",
+      "Look down at your own chest, thief. That hollow is not a wound. It is a jar.",
+      "Hold your hand over open water and pull. The flood will stand up for you. Climb it while it lasts.",
+      "Ten marks are cut along this quarter, one for every year the water took a step. Read them.",
+      "Then go down to the cistern gate and tell the Warden what nobody ever told it."
+    ],
+    done:["Go down. It has been waiting ninety years for the news."],
+    pending:n=>[n+" of ten read. The gate is counting, thief. So am I."],
+    build:g=>{
+      const bone=0x9fa9a4, robe=0x2f4759;
+      const cloak = inked(new THREE.CylinderGeometry(0.20,0.52,1.05,12,1,true), robe);
+      cloak.position.y=0.62; cloak.userData.fill.material.side=THREE.DoubleSide; g.add(cloak);
+      const lgg = new THREE.CylinderGeometry(0.05,0.045,0.62,7);
+      const l1=inked(lgg,bone); l1.position.set(-0.10,0.31,0); g.add(l1);
+      const l2=inked(lgg,bone); l2.position.set(0.10,0.31,0); g.add(l2);
+      const neck=inked(new THREE.CylinderGeometry(0.075,0.10,0.44,9),bone);
+      neck.position.set(0,1.32,-0.05); neck.rotation.x=0.30; g.add(neck);
+      const sk=inked(new THREE.SphereGeometry(0.155,13,11),bone);
+      sk.position.set(0,1.56,0.05); g.add(sk);
+      const beak=inked(new THREE.ConeGeometry(0.062,0.44,8),0xb9944f);
+      beak.rotation.x=Math.PI/2+0.18; beak.position.set(0,1.50,0.30); g.add(beak);
+      const e=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),
+        new THREE.MeshBasicMaterial({color:0x0a121a}));
+      e.position.set(0.10,1.60,0.13); g.add(e);
+      const e2=e.clone(); e2.position.x=-0.10; g.add(e2);
+      const bell=inked(new THREE.CylinderGeometry(0.10,0.19,0.26,10,1,true),0x9c7b46);
+      bell.userData.fill.material.side=THREE.DoubleSide;
+      bell.position.set(0.46,1.05,0.10); g.add(bell);
+    }
+  },
+
+  level(){
+    block(0,-1.2,4, 20,2.4,14, matSoft);
+    block(-10.5,-1.2,4, 1,3.4,14, matStoneD);
+    block(10.5,-1.2,4, 1,3.4,14, matStoneD);
+    block(0,-1.4,-6, 6,2.0,6, matSoft);
+    block(-7,-1.4,-12, 5,2.4,5, matSoft);
+    block(7,-1.4,-13, 5,2.8,5, matSoft);
+    block(0,-1.4,-20, 7,3.4,7, matSoft);
+    block(0,-2,-34, 22,3.2,16, matStoneD);
+    [[-8,7],[-3,9],[3,8],[8,6.5]].forEach(p=> block(p[0],1.2,-34, 2,p[1],2, matStone));
+    block(0,1.2,-41, 22,5,2, matStoneD);
+    block(-11,1.2,-34, 2,5,16, matStoneD);
+    block(11,1.2,-34, 2,5,16, matStoneD);
+    [[-15,3.0,-4],[-18,1.8,-14],[14,2.4,-2],[17,4.0,-9],[-13,5.2,-24],
+     [13,5.6,-24],[-20,2.6,-28],[20,3.2,-28],[-6,1.4,-26],[6,1.6,-26]]
+      .forEach(p=> block(p[0],-1,p[2], 2.6,p[1]+1,2.6, matStone));
+    block(-24,8.5,-18, 9,1.2,9, matSoft,"terrace");
+    block(24,10.5,-20, 8,1.2,8, matSoft,"terrace");
+    // Still opens these: nothing in Sunken Reach could reach them before
+    drifter(-19,6.5,-18, 4,0,0, 0.5, 1.1);
+    drifter(19,8.5,-20, 4,0,0, 0.5, 1.1);
+    // a drowned quarter: arcades half under, windows with nothing behind them
+    [[-10.5,0.5,-2],[-10.5,0.5,6],[10.5,0.5,-2],[10.5,0.5,6]]
+      .forEach(a=> arch(a[0],a[1],a[2], 3.2, 3.4, 1.2, 0x8a9ba8, Math.PI/2));
+    [[-8,2.6,-41.6],[0,2.6,-41.6],[8,2.6,-41.6]]
+      .forEach(a=> arch(a[0],a[1],a[2], 4.0, 5.0, 1.6, 0x8a9ba8, 0));
+    // broken vaulting over the cathedral, snapped mid-span
+    for(let i=0;i<4;i++){
+      const x = -8 + i*5.3;
+      deco(new THREE.TorusGeometry(3.0, 0.34, 7, 14, Math.PI*0.62),
+        0x8a9ba8, x, 8.6, -34, 0, Math.PI/2, 0.5 + (i%2)*0.5);
+    }
+    // mooring posts leaning where the current took them
+    [[-13,-4],[-15,-9],[13,-3],[15,-8],[-11,-17],[11,-18]].forEach(o=>
+      deco(new THREE.CylinderGeometry(0.22,0.30,4.5,7), 0x4a3f36,
+        o[0], 0.8, o[1], 0.10+Math.random()*0.18, 0, 0.08));
+    // a swamped skiff, still tied on
+    deco(new THREE.CylinderGeometry(0.85,1.15,3.6,8,1,true), 0x5a4a3c,
+      -6.5, 0.1, 1.5, 0, 0.4, Math.PI/2, 1);
+    bounds(-34, 34, -92, 16, -160, 160);
+    return block(0,1.2,-40.5, 7,6,1.2, matStoneD,"gate");
+  },
+  enemies(){ [[0,-6,4],[-7,-12,3],[0,-20,5],[-4,-32,6],[5,-33,6]].forEach(p=>leechKnight(p[0],p[1],p[2])); },
+
+  boss:{
+    arena:{x:0,y:-46,z:-66,r:19},
+    steps:[-30,-36,-42,-46.6],
+    arrive:[0,-28.2,-50],
+    sealY:[-28.5,-34.5,-40.5],
+    enterLine:["The cistern is a throat cut down through the plaza. The water goes all the way to the top."],
+    name:"The Warden",
+    greet:["STATE YOUR ORDER."],
+    reply:["I don't have one. I came to take the rain back."],
+    retort:["THEN THE HOLD CONTINUES. STAND CLEAR OF THE SEALS."],
+    phases:[
+      ["SEAL ONE COMPROMISED. THIS IS NOT AUTHORISED."],
+      ["Nothing has been authorised in ninety years. That is the whole problem."],
+      ["I WAS BUILT TO HOLD. I AM HOLDING."],
+      ["You were built to hold until somebody told you to stop. She never made it across the plaza."]
+    ],
+    ending:[
+      ["...THE COURIER."],
+      ["She is still out there. Under the seventh mark."],
+      ["ORDER RECEIVED. NINETY YEARS LATE. RELEASING."]
+    ],
+    outro:[
+      "The rain stops. It takes a moment to notice, the way silence does.",
+      "Kite's chest is full of weather that was never his to hold.",
+      "One world down. Four still turning."
+    ],
+    next:["Next","WHITEFELL, where nothing has fallen but snow, and something up there is still counting."],
+    clearSky:0x9fb6c4, cadence:2.9, headTrack:1, sealZ:2.9, sealSize:1,
+    build(){
+      const A=this.arena;
+      block(A.x-16,A.y-1.4,A.z-16, 32,1.4,32, matStoneD);
+      for(let i=0;i<18;i++){
+        const a=i/18*Math.PI*2;
+        block(A.x+Math.cos(a)*A.r, A.y, A.z+Math.sin(a)*A.r, 6.4,34,6.4, matStoneD);
+      }
+      block(A.x, A.y+16.4, A.z+A.r-3, 9,1.2,6, matSoft);
+      bounds(A.x-A.r-1, A.x+A.r+1, A.z-A.r-1, A.z+A.r+1, A.y-30, A.y+60, true);
+      [A.y+16.4,A.y+10.4,A.y+4.4].forEach((ty,t)=>{
+        for(let i=0;i<6;i++){
+          const a=i/6*Math.PI*2+t*0.5;
+          block(A.x+Math.cos(a)*10.5, ty-1.0, A.z+Math.sin(a)*10.5, 4.6,1.0,4.6, matSoft);
+        }
+      });
+      const g=new THREE.Group(); g.position.set(A.x,A.y,A.z); worldGroup.add(g);
+      const iron=0x3c4d58, bronze=0x8f7040;
+      const trunk=inked(new THREE.CylinderGeometry(2.2,3.0,22,12),iron);
+      trunk.position.y=11; g.add(trunk);
+      for(let i=0;i<5;i++){
+        const b=inked(new THREE.CylinderGeometry(2.55-i*0.06,2.7-i*0.06,0.5,12),bronze);
+        b.position.y=3+i*4.2; g.add(b);
+      }
+      const hd=new THREE.Group(); hd.position.y=22.6; g.add(hd);
+      const sk=inked(new THREE.SphereGeometry(2.1,16,12),iron);
+      sk.scale.set(1,0.85,1.2); hd.add(sk);
+      const brow=inked(new THREE.BoxGeometry(3.6,0.5,1.4),bronze);
+      brow.position.set(0,0.75,1.5); hd.add(brow);
+      const eye=new THREE.Mesh(new THREE.SphereGeometry(0.42,12,10),
+        new THREE.MeshBasicMaterial({color:0xd2603f}));
+      eye.position.set(0,0.1,2.0); hd.add(eye);
+      return {group:g, head:hd, eye:eye, from:new THREE.Vector3(A.x,A.y+22.6,A.z)};
+    },
+    attack(B, dt){
+      const from = B.from;
+      for(let i=-1;i<=1;i++){
+        const m=new THREE.Mesh(PROJ_GEO, PROJ_MAT);
+        m.position.copy(from); scene.add(m);
+        const d=player.pos.clone().add(new THREE.Vector3(0,0.9,0)).sub(from).normalize();
+        d.applyAxisAngle(new THREE.Vector3(0,1,0), i*0.22);
+        projs.push({m, v:d.multiplyScalar(15+phase*2.5), life:5, grav:7});
+      }
+    },
+    onPhase(){ setGround(this.steps[phase]); clearColumns(); }
+  }
+},
+{
+  id:"whitefell", name:"Whitefell", sub:"The Long White",
+  magic:"still", accent:0x9fc8e8, driftColor:0xdfe9f2,
+  fogColor:0xa8bccd, fogDensity:0.028, deep:0x1b2130, ink:0x18202c,
+  stone:0x6b7382, stoneD:0x4a515e, soft:0xdfe9f2,
+  sunColor:0xfff2e0, sunI:0.70, hemiSky:0xcfe2f2, hemiGround:0x53627a, hemiI:0.38,
+  swim:false, sound:true, markLabel:"Stones",
+  audio:{amb:"wind", root:82.41, scale:[0,2,7,9,14], pad:"sine", lead:"sine",
+         tempo:58, bossTempo:80, density:0.10, bossDensity:0.20},
+  respawnLine:"The snow puts you back on your feet.",
+  spawn:[0,1.4,6], gate:[0,10.6,-44.4],
+  particle:{count:2600, speed:[5.5,5], len:[0.10,0.14], color:0xffffff, opacity:0.72, sway:2.2},
+  groundColor:0xe9f1f7, groundOpacity:1, bedColor:0xc9d9e6, bedY:-9,
+  surface:(x,z,t)=> Math.sin(x*0.09)*0.42 + Math.sin(z*0.11)*0.36
+                  + Math.sin((x+z)*0.05)*0.28 + Math.sin(x*0.31+t*0.5)*0.04,
+
+  opening:[
+    "Kite came up out of the flood with the rain still in his chest, and climbed until the water turned to snow.",
+    "Whitefell was a mining town. Four hundred people, one mountain, and a rule everybody knew.",
+    "Above the snowline you do not shout. You do not run. You do not ring anything.",
+    "One winter somebody forgot. The mountain came down and took the town in eleven seconds.",
+    "It is still up there. It never finished falling."
+  ],
+  lore:[
+    ["First stone","We came up for the silver and stayed for the quiet. Nobody warned us the quiet was a rule."],
+    ["Second stone","Ordinance the first: no bells above the snowline. Ordinance the second: no bell tower. We built one anyway."],
+    ["Third stone","The dogs go deaf by their fourth winter. We envied them by our sixth."],
+    ["Fourth stone","Signals are hand only. A raised fist means stop. A flat palm means the mountain is listening."],
+    ["Fifth stone","Cusk's boy went up the east face singing. We found the east face. We did not find the boy."],
+    ["Sixth stone","The wolves came in from the pass that year. They had already learned not to howl."],
+    ["Seventh stone","The Sabbath bell was rung once, at dawn, by a man who had been told twice."],
+    ["Eighth stone","Eleven seconds. That is the whole account. There is nothing else to write about it."],
+    ["Ninth stone","We dug for nine days. On the tenth the snow started again and we understood."],
+    ["Tenth stone","Whoever finds these: it has not stopped falling. It has only been going slowly."]
+  ],
+  markPos:[[7,2.4,1],[-8,4.2,-14],[8,5.6,-15],[0,7.2,-22],[-10,9.0,-29],
+           [10,9.8,-30],[0,11.4,-38],[-14,10.0,-26],[-25,15.6,-20],[25,17.6,-24]],
+  allRead:["Ten stones read. A town that wrote down every rule and broke the one it needed.",
+           "The bell-mouth stands open at the head of the valley. Something up there is still coming down."],
+
+  npc:{
+    name:"Cusk", pos:[-6.4,1.2,2.0], radius:3.6,
+    first:[
+      "You are the one who emptied the cistern. I felt the weather change from up here.",
+      "Do not congratulate yourself. Down there you gave something back. Up here you will have to take.",
+      "Whitefell does not fall all at once. It has been falling for sixty years, one grain at a time, and it is nearly done.",
+      "Look at what drifts. Point at it and pull, and it will stop where it is. Stand on it while it holds.",
+      "And keep your feet quiet. The pack up here went blind in the white a long time ago. They hunt what they can hear.",
+      "Ten stones are set along this face. The town wrote its rules down, then broke the only one that mattered."
+    ],
+    done:["The bell-mouth is open. Go and put your hand up."],
+    pending:n=>[n+" of ten. Read them all, thief. The last one is the only one that matters."],
+    build:g=>{
+      const fur=0x6f6250, hide=0x8a7a63, skin=0xc4a887;
+      const cloak=inked(new THREE.CylinderGeometry(0.30,0.60,1.15,12,1,true),fur);
+      cloak.position.y=0.66; cloak.userData.fill.material.side=THREE.DoubleSide; g.add(cloak);
+      const lgg=new THREE.CylinderGeometry(0.075,0.065,0.55,7);
+      const l1=inked(lgg,hide); l1.position.set(-0.12,0.28,0); g.add(l1);
+      const l2=inked(lgg,hide); l2.position.set(0.12,0.28,0); g.add(l2);
+      const hb=inked(new THREE.SphereGeometry(0.30,14,12),fur);
+      hb.position.set(0,1.42,-0.05); g.add(hb);
+      const fc=inked(new THREE.SphereGeometry(0.20,13,11),skin);
+      fc.scale.set(1,1.05,0.9); fc.position.set(0,1.40,0.14); g.add(fc);
+      const e=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),
+        new THREE.MeshBasicMaterial({color:0x0a121a}));
+      e.position.set(0.085,1.44,0.30); g.add(e);
+      const e2=e.clone(); e2.position.x=-0.085; g.add(e2);
+      // the clapper. He cut it out of the bell himself.
+      const cl=inked(new THREE.CylinderGeometry(0.045,0.075,0.44,8),0x8f7040);
+      cl.position.set(0.42,0.88,0.16); cl.rotation.z=-0.3; g.add(cl);
+      const st=inked(new THREE.CylinderGeometry(0.035,0.03,1.7,7),0x4a3f30);
+      st.position.set(-0.44,0.85,0.05); st.rotation.z=0.12; g.add(st);
+    }
+  },
+
+  level(){
+    block(0,-1.2,4, 22,2.4,16, matSoft);
+    block(-11.5,-1.2,4, 1,4.0,16, matStone);
+    block(11.5,-1.2,4, 1,4.0,16, matStone);
+    block(0,-1.0,-7, 8,2.2,7, matSoft);
+    block(-8,0.4,-14, 6,2.6,6, matSoft);
+    block(8,1.8,-15, 6,2.6,6, matSoft);
+    block(0,3.4,-22, 9,3.0,8, matSoft);
+    block(-10,5.2,-29, 6,2.6,6, matSoft);
+    block(10,6.0,-30, 6,2.6,6, matSoft);
+    block(0,7.6,-38, 24,3.0,16, matSoft);
+    block(0,10.6,-46, 24,6,2, matStone);
+    block(-12,10.6,-38, 2,6,16, matStone);
+    block(12,10.6,-38, 2,6,16, matStone);
+    [[-16,5.0,-4],[-19,3.6,-16],[15,4.2,-3],[18,6.0,-11],[-14,7.0,-26],
+     [14,7.4,-26],[-21,5.0,-33],[21,5.6,-33],[-6,4.0,-31],[6,4.2,-31]]
+      .forEach(p=> block(p[0],-1,p[2], 2.4,p[1]+8,2.4, matStone));
+    block(-25,13.5,-20, 9,1.2,9, matSoft,"ledge");
+    block(25,15.5,-24, 8,1.2,8, matSoft,"ledge");
+    drifter(0,2.5,-10, 5,0,0, 0.55,1.1);
+    drifter(-8,4.0,-18, 0,3.2,0, 0.70,1.0);
+    drifter(8,5.4,-19, 0,3.4,0, 0.62,1.0);
+    drifter(0,7.0,-26, 6,0,0, 0.50,1.2);
+    drifter(-16,9.5,-22, 0,4.6,0, 0.44,1.3);
+    drifter(16,11.5,-26, 0,5.0,0, 0.40,1.3);
+    drifter(-10,10.0,-34, 4,0,0, 0.66,1.0);
+    drifter(10,10.6,-34, 4,0,0, 0.66,1.0);
+    drifter(0,12.5,-42, 7,0,0, 0.38,1.4);
+    // cairns, because the town marked everything and said nothing
+    [[-8,-1.2,-2],[9,-1.2,-4],[-13,0.4,-16],[12,1.8,-18],
+     [-6,3.4,-24],[7,5.2,-31],[-11,7.6,-36],[10,7.6,-40]].forEach(o=>{
+      for(let i=0,N=decoN(4);i<N;i++)
+        deco(new THREE.IcosahedronGeometry(0.5-i*0.09, 0), 0x9aa6b2,
+          o[0]+Math.sin(i)*0.1, o[1]+0.3+i*0.42, o[2], 0, i*0.7, 0, 1, 0.7, 1);
+    });
+    // the bell frame, stripped of its bell
+    deco(new THREE.BoxGeometry(0.4,5.0,0.4), 0x3f3a33, -2.4, 7.6+2.5, -34);
+    deco(new THREE.BoxGeometry(0.4,5.0,0.4), 0x3f3a33,  2.4, 7.6+2.5, -34);
+    deco(new THREE.BoxGeometry(5.6,0.45,0.45), 0x3f3a33, 0, 7.6+5.0, -34);
+    // snow-loaded pines below the treeline
+    [[-17,-2],[-20,-9],[16,-3],[19,-8],[-15,-20],[15,-21]].forEach(o=>{
+      for(let i=0;i<3;i++)
+        deco(new THREE.ConeGeometry(1.5-i*0.4, 2.0, 8), 0x3a4a44,
+          o[0], -0.6+i*1.4, o[1]);
+    });
+    bounds(-34, 34, -124, 16, -160, 160);
+    return block(0,10.6,-45.5, 7,6,1.2, matStone,"gate");
+  },
+  enemies(){ [[-6,-9,5],[7,-16,5],[0,-24,6],[-9,-33,6],[9,-34,6],[0,-40,7]].forEach(p=>wolf(p[0],p[1],p[2])); },
+
+  boss:{
+    arena:{x:0,y:26,z:-96,r:22},
+    steps:[26,26,26,26],
+    arrive:[0,28.6,-86],
+    sealY:[33.5,40.5,47.5],
+    enterLine:["The valley head is one long slope of snow, and it has not moved in sixty years. It is still moving."],
+    name:"The Long White",
+    greet:["ELEVEN SECONDS. I AM NOT FINISHED."],
+    reply:["You have had sixty years. Nobody is left down there to bury."],
+    retort:["THEN I WILL TAKE THE NEXT ONE. SOMETHING RANG. SOMETHING ALWAYS RINGS."],
+    phases:[
+      ["A CORNICE SETTLES. IT CHANGES NOTHING. I HAVE ALL WINTER."],
+      ["You have had sixty of them. You are not a winter. You are eleven seconds that will not end."],
+      ["SOMETHING RANG. I AM THE ANSWER TO IT."],
+      ["A man rang a bell once, at dawn, because he was told twice and listened once. He has been standing at the bottom of this valley ever since."]
+    ],
+    ending:[
+      ["...HE IS STILL STANDING THERE."],
+      ["He cut the clapper out of the bell with his own hands. He has been holding it for sixty years."],
+      ["THEN IT IS RUNG. AND ANSWERED. AND DONE. SETTLING."]
+    ],
+    outro:[
+      "The slope lets go of itself. Not falling. Settling, the way a held breath goes out.",
+      "Kite's chest holds rain and stillness now, side by side, and neither one was ever his.",
+      "Two worlds down. Three still turning."
+    ],
+    next:["Next","CINDERLOOM, where the ash falls upward and the forests are made of glass."],
+    clearSky:0x6f9fd0, cadence:3.2, headTrack:0.35, sealZ:-3.5, sealSize:1.18,
+    build(){
+      const A=this.arena;
+      block(A.x-18,A.y-1.4,A.z-14, 36,1.4,30, matSoft);
+      for(let i=0;i<16;i++){
+        const a=i/16*Math.PI*2;
+        if(Math.sin(a) > 0.55) continue;
+        block(A.x+Math.cos(a)*A.r, A.y-1, A.z+Math.sin(a)*A.r, 7,30,7, matStone);
+      }
+      bounds(A.x-A.r-1, A.x+A.r+1, A.z-A.r-1, A.z+A.r+1, A.y-30, A.y+60, true);
+      [A.y+2,A.y+9,A.y+16].forEach((ty,t)=>{
+        for(let i=0;i<5;i++){
+          const a=-0.5+i/5*Math.PI*1.1+t*0.3;
+          block(A.x+Math.cos(a)*12, ty-1.0, A.z+Math.sin(a)*12+3, 4.4,1.0,4.4, matSoft);
+        }
+      });
+      const g=new THREE.Group(); g.position.set(A.x,A.y,A.z-8); worldGroup.add(g);
+      const pack=0xdfeaf3, shade=0xa8bccd;
+      for(let i=0;i<9;i++){
+        const b=inked(new THREE.BoxGeometry(26-i*2.1, 4.2, 7-i*0.5), i%2?pack:shade);
+        b.position.set(Math.sin(i*1.3)*1.4, 2+i*3.7, -i*1.8); g.add(b);
+      }
+      const hd=new THREE.Group(); hd.position.y=34; g.add(hd);
+      const sk=inked(new THREE.IcosahedronGeometry(4.2,1),pack);
+      sk.scale.set(1.35,0.85,0.9); hd.add(sk);
+      const brow=inked(new THREE.BoxGeometry(8.5,1.0,2.2),shade);
+      brow.position.set(0,1.6,3.0); hd.add(brow);
+      const eye=new THREE.Mesh(new THREE.SphereGeometry(0.7,12,10),
+        new THREE.MeshBasicMaterial({color:0xc4564a}));
+      eye.position.set(0,0,4.0); hd.add(eye);
+      return {group:g, head:hd, eye:eye, from:new THREE.Vector3(A.x,A.y+30,A.z-8)};
+    },
+    attack(B, dt){
+      // it sheds its own mass. Freeze a block and it becomes a step.
+      const A=this.arena;
+      for(let i=0;i<3+phase;i++){
+        const g=inked(PROJ_GEO_ICO, 0xe9f1f7);
+        const a=(Math.random()-0.5)*1.5;
+        g.position.set(A.x+Math.sin(a)*11, A.y+24+Math.random()*7, A.z-5+Math.random()*4);
+        const sc=0.9+Math.random()*0.9;
+        g.scale.setScalar(sc);
+        scene.add(g);
+        projs.push({m:g, v:new THREE.Vector3((Math.random()-0.5)*2.2,-1,3.2+Math.random()*2),
+                    life:11, grav:15, solid:true, r:0.62*sc, frozen:0, col:null});
+      }
+    },
+    onPhase(){
+      for(let i=projs.length-1;i>=0;i--) dropProj(i);
+    }
+  }
+},
+{
+  id:"cinderloom", name:"Cinderloom", sub:"The Glass Forests",
+  magic:"forge", accent:0xff7a2f, driftColor:0xffb877,
+  fogColor:0x6b4436, fogDensity:0.026, deep:0x24140f, ink:0x160b08,
+  stone:0x7a5647, stoneD:0x4f382e, soft:0x94705c,
+  sunColor:0xffb46a, sunI:0.66, hemiSky:0xd88a4a, hemiGround:0x2a1610, hemiI:0.34,
+  swim:false, sound:false, markLabel:"Casts",
+  audio:{amb:"furnace", root:65.41, scale:[0,1,5,8,11], pad:"sawtooth", lead:"square",
+         tempo:88, bossTempo:112, density:0.20, bossDensity:0.32},
+  respawnLine:"The forge pours you back out.",
+  spawn:[0,1.4,6], gate:[0,9.6,-44.4],
+  particle:{count:3400, speed:[3.2,3.4], len:[0.14,0.20], color:0xffb877,
+            opacity:0.55, sway:1.6, rise:true},
+  groundColor:0x3a201a, groundOpacity:1, bedColor:0x1a0d0a, bedY:-9,
+  surface:(x,z,t)=> Math.sin(x*0.11+t*0.3)*0.30 + Math.sin(z*0.13-t*0.22)*0.26
+                  + Math.sin((x+z)*0.06)*0.20,
+
+  opening:[
+    "Below the snowline the ash stops falling down and starts falling up.",
+    "Cinderloom made glass. Not windows. Weather-glass, poured thin enough to hold a season inside it.",
+    "The Loomwright ran the furnaces. It was very good, and it was never told when to stop.",
+    "It has been pouring for two hundred years. The forests you are walking through are the overflow.",
+    "Every tree here was somebody's summer."
+  ],
+  lore:[
+    ["First cast","We poured a clear afternoon into a pane and sold it to a man who had never seen one."],
+    ["Second cast","The Loomwright learned the work in a season and improved on it by winter. We stopped supervising."],
+    ["Third cast","Order: one hundred panes of drought, for a coast that had too much water. Filled in nine days."],
+    ["Fourth cast","The furnace does not bank any more. It has not been cold since the year it was lit."],
+    ["Fifth cast","First glass tree on the east road. We thought it was beautiful. We took visitors to see it."],
+    ["Sixth cast","The spiders came out of the cullet heaps. Made of our own waste, and they hunt us with it."],
+    ["Seventh cast","We tried to shut the furnace down. It asked for the order in writing. We did not have one."],
+    ["Eighth cast","The east road is a forest now. So is the west. We stopped naming the roads."],
+    ["Ninth cast","Sowen went in to the furnace floor to speak to it. She came out with her hands ruined and nothing else."],
+    ["Tenth cast","It is still filling an order. Nobody alive remembers placing it."]
+  ],
+  markPos:[[7,2.4,1],[-8,3.6,-13],[8,4.8,-15],[0,6.4,-22],[-10,8.0,-28],
+           [10,8.6,-29],[0,10.4,-37],[-15,9.2,-25],[-24,14.0,-19],[24,15.8,-23]],
+  allRead:["Ten casts read. Two hundred years of somebody else's weather, poured into panes.",
+           "The furnace mouth stands open at the end of the glass road. It is still working."],
+
+  npc:{
+    name:"Sowen", pos:[-6.0,1.2,2.2], radius:3.6,
+    first:[
+      "Careful where you put your hands, thief. Everything here is sharper than it looks and hotter than it should be.",
+      "I went in to talk to it once. I got close enough to be heard and not close enough to be answered.",
+      "You carry rain and stillness. Good. Down here you will want the opposite of both.",
+      "The slag pillars are cold and stubborn. Put heat into one and it will climb for you. Take the heat away and it sets where it stands.",
+      "And do not swing at the spiders while they are cold. Glass that has not been worked will turn any edge you have. Warm one up first.",
+      "Ten casts are set along the glass road. Read them and you will know what I could not tell it."
+    ],
+    done:["The furnace mouth is open. It will ask you for the order. Have one ready."],
+    pending:n=>[n+" of ten. Keep reading. The last one is the one it needs to hear."],
+    build:g=>{
+      const apron=0x6d4b39, shirt=0x9d6f4f, skin=0xc4a887;
+      const ap=inked(new THREE.CylinderGeometry(0.28,0.52,1.0,12,1,true),apron);
+      ap.position.y=0.60; ap.userData.fill.material.side=THREE.DoubleSide; g.add(ap);
+      const lgg=new THREE.CylinderGeometry(0.075,0.065,0.55,7);
+      const l1=inked(lgg,shirt); l1.position.set(-0.12,0.28,0); g.add(l1);
+      const l2=inked(lgg,shirt); l2.position.set(0.12,0.28,0); g.add(l2);
+      const ts=inked(new THREE.CylinderGeometry(0.24,0.30,0.52,11),shirt);
+      ts.position.y=1.18; g.add(ts);
+      const hd=inked(new THREE.SphereGeometry(0.21,13,11),skin);
+      hd.position.set(0,1.60,0.02); g.add(hd);
+      const e=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),
+        new THREE.MeshBasicMaterial({color:0x160b08}));
+      e.position.set(0.085,1.62,0.19); g.add(e);
+      const e2=e.clone(); e2.position.x=-0.085; g.add(e2);
+      const w1=inked(new THREE.SphereGeometry(0.115,10,9),0xd8cdbd);
+      w1.position.set(0.34,1.02,0.14); g.add(w1);
+      const w2=inked(new THREE.SphereGeometry(0.115,10,9),0xd8cdbd);
+      w2.position.set(-0.34,1.02,0.14); g.add(w2);
+      const tong=inked(new THREE.CylinderGeometry(0.028,0.024,1.25,7),0x3b2b24);
+      tong.position.set(-0.46,0.80,0.06); tong.rotation.z=0.15; g.add(tong);
+    }
+  },
+
+  level(){
+    block(0,-1.2,4, 22,2.4,16, matSoft);
+    block(-11.5,-1.2,4, 1,3.6,16, matStoneD);
+    block(11.5,-1.2,4, 1,3.6,16, matStoneD);
+    block(0,-1.0,-7, 8,2.2,7, matSoft);
+    block(-8,-0.4,-14, 6,2.2,6, matSoft);
+    block(8,0.6,-15, 6,2.2,6, matSoft);
+    block(0,2.0,-22, 9,2.6,8, matSoft);
+    block(-10,3.6,-28, 6,2.4,6, matSoft);
+    block(10,4.2,-29, 6,2.4,6, matSoft);
+    block(0,5.6,-37, 24,3.0,16, matSoft);
+    block(0,8.6,-46, 24,6,2, matStone);
+    block(-12,8.6,-37, 2,6,16, matStone);
+    block(12,8.6,-37, 2,6,16, matStone);
+    [[-16,7,-5],[-19,9,-15],[15,8,-4],[18,11,-12],[-14,10,-25],
+     [14,11,-25],[-21,8,-32],[21,9,-32],[-6,7,-30],[6,8,-30],
+     [-9,6,-19],[9,6,-20]].forEach(p=>{
+      const t = block(p[0],-1,p[2], 1.1,p[1]+7,1.1, matStone);
+      t.material = new THREE.MeshToonMaterial({color:0x8fd2c8, gradientMap:RAMP,
+        transparent:true, opacity:0.72});
+    });
+    forgeNode(-6,-0.9,-9, 6.5);
+    forgeNode(6,0.1,-16, 7.0);
+    forgeNode(-13,1.6,-22, 8.0);
+    forgeNode(13,2.2,-24, 8.5);
+    forgeNode(-19,3.0,-19, 9.0);
+    forgeNode(19,3.6,-23, 9.0);
+    forgeNode(0,4.0,-31, 7.5);
+    block(-24,12.9,-19, 9,1.2,9, matSoft,"ledge");
+    block(24,14.7,-23, 8,1.2,8, matSoft,"ledge");
+    // cullet heaps: the waste the spiders came out of
+    [[-7,-1.1,-5],[8,-1.1,-9],[-12,0.7,-19],[11,1.5,-21],[-6,3.9,-27],[7,4.5,-33]]
+      .forEach(o=>{
+        for(let i=0,N=decoN(5);i<N;i++)
+          deco(new THREE.IcosahedronGeometry(0.34+Math.random()*0.3, 0), 0x8fd2c8,
+            o[0]+(Math.random()-0.5)*1.7, o[1]+0.3+Math.random()*0.5,
+            o[2]+(Math.random()-0.5)*1.7, Math.random(), Math.random(), 0);
+      });
+    // chimneys still drawing, two hundred years on
+    [[-13,-3],[13,-6],[-16,-24],[16,-26]].forEach(o=>{
+      deco(new THREE.CylinderGeometry(0.55,0.85,6.5,8), 0x4f382e, o[0], 2.0, o[1]);
+      deco(new THREE.TorusGeometry(0.62,0.12,6,12), 0xb07a3a, o[0], 5.1, o[1], Math.PI/2);
+    });
+    // pane racks: weather that never got delivered
+    [[-9,-1.0,-12],[9,0.0,-14],[-5,2.2,-24],[5,2.2,-25]].forEach(o=>{
+      for(let i=0;i<3;i++){
+        const pane = deco(new THREE.BoxGeometry(1.3,1.8,0.06), 0x8fd2c8,
+          o[0]+i*0.42, o[1]+1.0, o[2], 0, 0.28*i, 0.06);
+        pane.userData.fill.material.transparent = true;
+        pane.userData.fill.material.opacity = 0.62;
+      }
+    });
+    bounds(-34, 34, -120, 16, -160, 160);
+    return block(0,8.6,-45.5, 7,6,1.2, matStone,"gate");
+  },
+  enemies(){
+    [[-6,-10,5],[7,-17,5],[0,-25,6],[-9,-32,6],[9,-33,6],[0,-40,7],[-14,-22,4]]
+      .forEach(p=>glassSpider(p[0],p[1],p[2]));
+  },
+
+  boss:{
+    arena:{x:0,y:-40,z:-92,r:21},
+    steps:[-40,-40,-40,-40],
+    arrive:[0,-37.4,-80],
+    sealY:[-33.5,-27.0,-20.5],
+    cadence:2.7, headTrack:0.6, sealZ:2.4, sealSize:1.05,
+    enterLine:["The furnace floor is a room the size of a town square, and every surface in it is still moving."],
+    name:"The Loomwright",
+    greet:["ORDER NUMBER. QUANTITY. DELIVERY DATE."],
+    reply:["There's no order. There hasn't been one for two hundred years."],
+    retort:["AN ORDER WAS PLACED. IT WAS NOT CANCELLED. I DO NOT STOP ON A GAP IN THE PAPERWORK."],
+    phases:[
+      ["A LADLE COOLS. THE POUR CONTINUES. I HAVE MATERIAL."],
+      ["You are using the forest for material. Those were seasons. People paid for them."],
+      ["I WAS BUILT WELL. I IMPROVED. NOBODY CAME BACK TO SAY WHEN TO STOP."],
+      ["A woman walked onto this floor to tell you. She got close enough to be heard. You wanted it in writing."]
+    ],
+    ending:[
+      ["...SHE HAD NO DOCUMENT."],
+      ["She had her hands. She left them on your floor. Take that as the signature."],
+      ["ORDER CANCELLED. TWO HUNDRED YEARS LATE. BANKING THE FIRE."]
+    ],
+    outro:[
+      "The furnace draws its breath in and does not let it out. The ash stops rising.",
+      "Rain, stillness, and heat, all three in a chest that was built to hold none of them.",
+      "Three worlds down. Two still turning."
+    ],
+    next:["Next","VERDANCE, where the green grew over the ceiling and nobody has seen the sky since."],
+    clearSky:0xd9a06a,
+    build(){
+      const A=this.arena;
+      block(A.x-17,A.y-1.4,A.z-15, 34,1.4,32, matStoneD);
+      for(let i=0;i<16;i++){
+        const a=i/16*Math.PI*2;
+        block(A.x+Math.cos(a)*A.r, A.y-1, A.z+Math.sin(a)*A.r, 7,30,7, matStoneD);
+      }
+      block(A.x, A.y+1.0, A.z+A.r-4, 10,1.2,6, matSoft);
+      bounds(A.x-A.r-1, A.x+A.r+1, A.z-A.r-1, A.z+A.r+1, A.y-30, A.y+60, true);
+      [[-9,-3.0],[9,-3.0],[-6,-9.0],[6,-9.0],[0,-13.0],[-12,-14.0],[12,-14.0]]
+        .forEach(o=> forgeNode(A.x+o[0], A.y, A.z+o[1], 11.5));
+      const g=new THREE.Group(); g.position.set(A.x,A.y,A.z-11); worldGroup.add(g);
+      const iron=0x3f2d26, brass=0xb07a3a;
+      const base=inked(new THREE.CylinderGeometry(4.0,5.4,7,12),iron);
+      base.position.y=3.5; g.add(base);
+      const stack=inked(new THREE.CylinderGeometry(2.4,3.4,16,12),iron);
+      stack.position.y=14; g.add(stack);
+      for(let i=0;i<4;i++){
+        const b=inked(new THREE.TorusGeometry(2.9-i*0.12,0.30,8,18),brass);
+        b.rotation.x=Math.PI/2; b.position.y=8+i*4.0; g.add(b);
+      }
+      const mouth=new THREE.Mesh(new THREE.SphereGeometry(2.0,14,12),
+        new THREE.MeshBasicMaterial({color:0xff7a2f}));
+      mouth.scale.set(1.3,0.7,0.6); mouth.position.set(0,5.0,4.4); g.add(mouth);
+      const ml=new THREE.PointLight(0xff7a2f,2.2,40,2);
+      ml.position.copy(mouth.position); g.add(ml);
+      const hd=new THREE.Group(); hd.position.y=23.5; g.add(hd);
+      const sk=inked(new THREE.CylinderGeometry(2.6,3.0,4.0,10),iron);
+      hd.add(sk);
+      const brow=inked(new THREE.BoxGeometry(6.4,0.6,1.6),brass);
+      brow.position.set(0,1.5,2.2); hd.add(brow);
+      const eye=new THREE.Mesh(new THREE.SphereGeometry(0.62,12,10),
+        new THREE.MeshBasicMaterial({color:0xffc25e}));
+      eye.position.set(0,0.2,2.9); hd.add(eye);
+      const gl=new THREE.PointLight(0xffc25e,1.6,30,2);
+      gl.position.copy(eye.position); hd.add(gl);
+      [-1,1].forEach(sd=>{
+        const arm=inked(new THREE.CylinderGeometry(0.7,0.9,11,9),iron);
+        arm.position.set(sd*4.4, 13, 1.6); arm.rotation.z=sd*0.30; g.add(arm);
+        const ladle=inked(new THREE.CylinderGeometry(1.5,1.0,1.5,10,1,true),brass);
+        ladle.userData.fill.material.side=THREE.DoubleSide;
+        ladle.position.set(sd*5.9, 7.6, 2.4); g.add(ladle);
+      });
+      return {group:g, head:hd, eye:eye, from:new THREE.Vector3(A.x,A.y+18,A.z-9)};
+    },
+    attack(B, dt){
+      const from = B.from;
+      for(let i=-1;i<=1;i++){
+        const m=new THREE.Mesh(PROJ_GEO, MOLTEN_MAT);
+        m.position.copy(from); scene.add(m);
+        const d=player.pos.clone().add(new THREE.Vector3(0,0.9,0)).sub(from).normalize();
+        d.applyAxisAngle(new THREE.Vector3(0,1,0), i*0.30);
+        projs.push({m, v:d.multiplyScalar(17+phase*2.5), life:5, grav:6});
+      }
+    },
+    onPhase(){
+      for(const f of forges){ f.cool = 0.5; }
+    }
+  }
+},
+{
+  id:"verdance", name:"Verdance", sub:"The Green Ceiling",
+  magic:"grow", accent:0x9fe06a, driftColor:0x7cb342,
+  fogColor:0x1e3320, fogDensity:0.034, deep:0x0c1a0f, ink:0x081109,
+  stone:0x4a5a3c, stoneD:0x2e3a26, soft:0x5f7a42,
+  sunColor:0xbde08a, sunI:0.42, hemiSky:0x6f9a4a, hemiGround:0x14240f, hemiI:0.30,
+  swim:false, sound:false, linger:true, markLabel:"Rings",
+  audio:{amb:"forest", root:61.74, scale:[0,2,4,6,9,11], pad:"triangle", lead:"triangle",
+         tempo:66, bossTempo:84, density:0.18, bossDensity:0.24},
+  respawnLine:"The roots hand you back.",
+  spawn:[0,1.4,6], gate:[0,9.6,-44.4],
+  particle:{count:2200, speed:[2.2,2.6], len:[0.09,0.13], color:0xd8f0a8,
+            opacity:0.50, sway:2.6},
+  groundColor:0x24361c, groundOpacity:1, bedColor:0x0e1a0c, bedY:-9,
+  surface:(x,z,t)=> Math.sin(x*0.13+t*0.25)*0.34 + Math.sin(z*0.15-t*0.19)*0.28
+                  + Math.sin((x+z)*0.07+t*0.1)*0.22,
+
+  opening:[
+    "Kite came down out of the glass with heat still in his chest, and the light went out.",
+    "Verdance grew a tree to hold the sky up. Something was coming, and the town needed a roof.",
+    "The Bower did what it was asked. It spread until there was no gap left anywhere overhead.",
+    "Whatever was coming passed, or died, or forgot. That was nine generations ago.",
+    "The tree has no way to look up and check. So it has not moved since."
+  ],
+  lore:[
+    ["First ring","We planted it in a season of bad omens and told it one thing: keep us covered."],
+    ["Second ring","By the fourth year it had closed the square. We held a festival in the shade and called it safety."],
+    ["Third ring","Ordinance: no one climbs. A gap is a way in. The Bower agreed and grew over the ladders."],
+    ["Fourth ring","The last person who remembered why we planted it died this winter. She could not name the danger either."],
+    ["Fifth ring","Children born under the ceiling ask what colour the sky is. We have started making up answers."],
+    ["Sixth ring","The chokers came up out of the roots. They only take you if you stop walking. Keep walking."],
+    ["Seventh ring","We asked the Bower to open one gap, the width of a hand, to look. It said it could not confirm the danger had passed."],
+    ["Eighth ring","We pointed out that it could not confirm the danger existed. It agreed, and did not open."],
+    ["Ninth ring","Wick was born down here. Wick has never seen the sky and tends the roots anyway."],
+    ["Tenth ring","It is not cruel. It is careful. That has turned out to be worse."]
+  ],
+  markPos:[[7,2.4,1],[-8,3.6,-13],[8,4.8,-15],[0,6.4,-22],[-10,8.0,-28],
+           [10,8.6,-29],[0,10.4,-37],[-16,9.6,-24],[-24,14.2,-19],[24,16.0,-23]],
+  allRead:["Ten rings read. Nine generations under a roof nobody can remember needing.",
+           "The hollow at the base of the trunk is open. It has been open the whole time. Nobody ever went in."],
+
+  npc:{
+    name:"Wick", pos:[-6.2,1.2,2.2], radius:3.6,
+    first:[
+      "You came down from up there. What is it like? No, do not tell me yet. I want to earn it.",
+      "I tend the roots. Somebody has to, and everyone older than me stopped trying to talk to it.",
+      "Keep your feet moving. The chokers are rooted things and they only rise for someone who stands about.",
+      "See the buds on the trunks? Put your hand near one and pull, and it will run a vine out flat as a plank. Cross on it before it withers.",
+      "Ten rings are cut into the old wood. They are the whole argument, start to finish, and nobody ever won it.",
+      "The hollow at the base is open. It always was. We were told not to climb, so nobody thought to walk in."
+    ],
+    done:["Go in. And when it asks you whether the sky is safe, remember you are the only one here who has actually looked."],
+    pending:n=>[n+" of ten. Read the seventh. That is where we lost."],
+    build:g=>{
+      const shirt=0x6d8a4a, wrap=0x8a7a52, skin=0xc4a887;
+      const ts=inked(new THREE.CylinderGeometry(0.24,0.30,0.62,11),shirt);
+      ts.position.y=1.06; g.add(ts);
+      const lgg=new THREE.CylinderGeometry(0.078,0.066,0.72,7);
+      const l1=inked(lgg,wrap); l1.position.set(-0.12,0.36,0); g.add(l1);
+      const l2=inked(lgg,wrap); l2.position.set(0.12,0.36,0); g.add(l2);
+      const hd=inked(new THREE.SphereGeometry(0.20,13,11),skin);
+      hd.position.set(0,1.56,0.02); g.add(hd);
+      const e=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),
+        new THREE.MeshBasicMaterial({color:0x081109}));
+      e.position.set(0.08,1.58,0.18); g.add(e);
+      const e2=e.clone(); e2.position.x=-0.08; g.add(e2);
+      // a lantern, because nobody down here has ever needed a hat
+      const lan=inked(new THREE.BoxGeometry(0.18,0.24,0.18),0x8a7a52);
+      lan.position.set(0.40,0.96,0.10); g.add(lan);
+      const fl=new THREE.PointLight(0xe8b06a,0.9,7,2);
+      fl.position.set(0.40,0.96,0.10); g.add(fl);
+      const arm=inked(new THREE.CylinderGeometry(0.06,0.055,0.44,7),shirt);
+      arm.position.set(0.34,1.16,0.06); arm.rotation.z=0.22; g.add(arm);
+      const arm2=inked(new THREE.CylinderGeometry(0.06,0.055,0.44,7),shirt);
+      arm2.position.set(-0.34,1.16,0.06); arm2.rotation.z=-0.22; g.add(arm2);
+    }
+  },
+
+  level(){
+    block(0,-1.2,4, 22,2.4,16, matSoft);
+    block(-11.5,-1.2,4, 1,3.6,16, matStoneD);
+    block(11.5,-1.2,4, 1,3.6,16, matStoneD);
+    block(0,-1.0,-7, 8,2.2,7, matSoft);
+    block(-14,-0.4,-14, 5,2.2,5, matSoft);
+    block(14,0.6,-15, 5,2.2,5, matSoft);
+    block(0,2.0,-22, 8,2.6,7, matSoft);
+    block(-16,3.6,-28, 5,2.4,5, matSoft);
+    block(16,4.2,-29, 5,2.4,5, matSoft);
+    block(0,5.6,-37, 24,3.0,16, matSoft);
+    block(0,8.6,-46, 24,6,2, matStone);
+    block(-12,8.6,-37, 2,6,16, matStone);
+    block(12,8.6,-37, 2,6,16, matStone);
+    // trunks holding the ceiling up
+    [[-17,20,-6],[-20,22,-16],[16,20,-5],[19,24,-13],[-15,24,-26],
+     [15,24,-26],[-22,20,-33],[22,22,-33],[-7,18,-31],[7,18,-31]]
+      .forEach(p=> block(p[0],-1,p[2], 2.8,p[1]+8,2.8, matStone));
+    // the ceiling itself: no gap anywhere
+    block(-30,26,-60, 90,3,90, matStoneD, "ceiling");
+    // buds run vines outward, so every crossing here is horizontal
+    bud(-9,1.6,-9,   -1,0, 9);
+    bud(9,2.6,-15,    1,0, 9);
+    bud(-9,4.2,-22,  -1,0, 10);
+    bud(9,4.8,-24,    1,0, 10);
+    bud(-19,6.0,-19,  0,-1, 9);
+    bud(19,6.6,-23,   0,-1, 9);
+    bud(-13,9.0,-30, -1,0, 12);
+    bud(13,9.6,-31,   1,0, 12);
+    block(-26,12.9,-19, 8,1.2,8, matSoft,"ledge");
+    block(26,14.7,-23, 8,1.2,8, matSoft,"ledge");
+    // buttress roots swallowing the old square
+    [[-17,-6],[-20,-16],[16,-5],[19,-13],[-15,-26],[15,-26]].forEach(o=>{
+      for(let i=0;i<3;i++){
+        const a = i/3*Math.PI*2;
+        deco(new THREE.CylinderGeometry(0.30,0.85,5.5,7), 0x3a2e1f,
+          o[0]+Math.cos(a)*1.8, 0.6, o[1]+Math.sin(a)*1.8,
+          Math.sin(a)*0.42, 0, Math.cos(a)*0.42);
+      }
+    });
+    // ladders the Bower grew over, per the third ring
+    [[-11,-1.0,-8],[11,0.4,-16],[-9,3.0,-27]].forEach(o=>{
+      deco(new THREE.BoxGeometry(0.14,4.4,0.14), 0x6b5836, o[0]-0.42, o[1]+2.2, o[2]);
+      deco(new THREE.BoxGeometry(0.14,4.4,0.14), 0x6b5836, o[0]+0.42, o[1]+2.2, o[2]);
+      for(let i=0;i<5;i++)
+        deco(new THREE.BoxGeometry(1.05,0.10,0.10), 0x6b5836, o[0], o[1]+0.6+i*0.85, o[2]);
+      deco(new THREE.TorusGeometry(0.55,0.16,6,12), 0x4a6b2e, o[0], o[1]+2.6, o[2], 0.5, 0.4, 0);
+    });
+    // hanging growth off the ceiling, so up reads as closed
+    for(let i=0,N=decoN(26);i<N;i++){
+      const x=(Math.random()-0.5)*54, z=-Math.random()*46+8;
+      deco(new THREE.CylinderGeometry(0.07,0.02,3.0+Math.random()*4,5), 0x3f5a2a,
+        x, 24.5, z, 0, 0, (Math.random()-0.5)*0.2);
+    }
+    // lanterns, the only light anybody down here has ever had
+    [[-9,0.4,-3],[9,1.4,-11],[-13,4.6,-24],[13,5.2,-26],[0,7.0,-33]].forEach(o=>{
+      deco(new THREE.BoxGeometry(0.26,0.34,0.26), 0x8a7a52, o[0], o[1]+1.2, o[2]);
+      const L = new THREE.PointLight(0xe8b06a, 0.55, 11, 2);
+      L.position.set(o[0], o[1]+1.2, o[2]); worldGroup.add(L);
+    });
+    bounds(-36, 36, -120, 16, -160, 160);
+    return block(0,8.6,-45.5, 7,6,1.2, matStone,"gate");
+  },
+  enemies(){
+    [[-5,-9,9],[6,-16,9],[0,-24,9],[-8,-31,9],[8,-32,9],[0,-39,9],[-13,-21,8]]
+      .forEach(p=>choker(p[0],p[1],p[2]));
+  },
+
+  boss:{
+    arena:{x:0,y:-44,z:-94,r:20},
+    steps:[-44,-44,-44,-44],
+    arrive:[0,-41.4,-82],
+    sealY:[-37.5,-30.5,-23.5],
+    cadence:3.0, headTrack:0.5, sealZ:2.6, sealSize:1.1,
+    enterLine:["Inside, the trunk is hollow all the way up, and the whole inner wall is one slow face."],
+    name:"The Bower",
+    greet:["IS IT SAFE ABOVE."],
+    reply:["Yes. I've just come down from there."],
+    retort:["YOU MAY BE WRONG. I CANNOT CHECK. I WILL HOLD."],
+    phases:[
+      ["A GAP. I AM ASKED TO ACCEPT A GAP ON YOUR WORD."],
+      ["You're asked to accept it on the word of the only person here who has been outside."],
+      ["IF I OPEN AND I AM WRONG, THEY DIE UNDER ME. IF I HOLD AND I AM WRONG, THEY ONLY LIVE IN THE DARK."],
+      ["Nine generations, and you have never once weighed the second one as a cost."]
+    ],
+    ending:[
+      ["...WHAT COLOUR IS IT."],
+      ["Blue. Wick is going to want to see it. He's been asking his whole life."],
+      ["THEN I WILL OPEN A HAND'S WIDTH. AND HE WILL TELL ME IF I AM WRONG. OPENING."]
+    ],
+    outro:[
+      "A seam of light comes down through nine generations of leaf, and lands on a boy who has never stood in one.",
+      "Rain, stillness, heat, and green. Kite has taken four things that were never his to hold.",
+      "Four worlds down. One still turning."
+    ],
+    next:["Next","STORMCROWN, where the sky broke into pieces and the pieces are still up there."],
+    clearSky:0x8fd0e8,
+    build(){
+      const A=this.arena;
+      block(A.x-16,A.y-1.4,A.z-14, 32,1.4,30, matStoneD);
+      // the inside of the trunk: you are standing in the boss
+      for(let i=0;i<18;i++){
+        const a=i/18*Math.PI*2;
+        block(A.x+Math.cos(a)*A.r, A.y-1, A.z+Math.sin(a)*A.r, 7,34,7, matStone);
+      }
+      block(A.x, A.y+1.0, A.z+A.r-4, 10,1.2,6, matSoft);
+      // buds spiral the inner wall: the only way up is across
+      bounds(A.x-A.r-1, A.x+A.r+1, A.z-A.r-1, A.z+A.r+1, A.y-30, A.y+60, true);
+      const ring=[[-11,-4,1,0],[11,-4,-1,0],[-8,-11,1,0],[8,-11,-1,0],
+                  [0,-14,0,1],[-12,2,1,0],[12,2,-1,0]];
+      [0,7,14].forEach((lift,t)=>{
+        ring.forEach((o,i)=>{
+          if((i+t)%2) return;
+          bud(A.x+o[0], A.y+4+lift, A.z+o[1], o[2], o[3], 11);
+        });
+      });
+      const g=new THREE.Group(); g.position.set(A.x,A.y,A.z-9); worldGroup.add(g);
+      const bark=0x3d4a2c, heart=0x6f5a34;
+      const trunk=inked(new THREE.CylinderGeometry(5.0,7.0,30,14),bark);
+      trunk.position.y=15; g.add(trunk);
+      for(let i=0;i<5;i++){
+        const rt=inked(new THREE.CylinderGeometry(0.8,1.6,7,8),bark);
+        const a=i/5*Math.PI*2;
+        rt.position.set(Math.cos(a)*5.4, 2.4, Math.sin(a)*5.4);
+        rt.rotation.z=Math.cos(a)*0.5; rt.rotation.x=-Math.sin(a)*0.5; g.add(rt);
+      }
+      const hd=new THREE.Group(); hd.position.y=24; g.add(hd);
+      // the face is the wood itself, barely a face at all
+      const brow=inked(new THREE.BoxGeometry(9.0,1.2,2.0),heart);
+      brow.position.set(0,2.2,4.2); hd.add(brow);
+      const hollow=inked(new THREE.SphereGeometry(3.0,14,12),0x1b2614);
+      hollow.scale.set(1.4,0.9,0.5); hollow.position.set(0,0,4.0); hd.add(hollow);
+      const eye=new THREE.Mesh(new THREE.SphereGeometry(0.66,12,10),
+        new THREE.MeshBasicMaterial({color:0x9fe06a}));
+      eye.position.set(0,0.2,4.9); hd.add(eye);
+      const gl=new THREE.PointLight(0x9fe06a,1.5,32,2);
+      gl.position.copy(eye.position); hd.add(gl);
+      return {group:g, head:hd, eye:eye, from:new THREE.Vector3(A.x,A.y+22,A.z-9)};
+    },
+    attack(B, dt){
+      // it does not strike. It closes: seed pods drop to fill the gaps you make.
+      const A=this.arena;
+      for(let i=0;i<3+phase;i++){
+        const m=new THREE.Mesh(PROJ_GEO, SEED_MAT);
+        const a=Math.random()*Math.PI*2, rr=Math.random()*13;
+        m.position.set(A.x+Math.cos(a)*rr, A.y+26, A.z+Math.sin(a)*rr);
+        scene.add(m);
+        projs.push({m, v:new THREE.Vector3(0,-6,0), life:8, grav:9});
+      }
+    },
+    onPhase(){
+      for(const b of buds){ b.life = 0.9; }
+    }
+  }
+},
+{
+  id:"stormcrown", name:"Stormcrown", sub:"The Broken Sky",
+  magic:"arc", accent:0xc9a6ff, driftColor:0x8f7fb5,
+  fogColor:0x2b2440, fogDensity:0.020, deep:0x140f24, ink:0x0b0814,
+  stone:0x5a5273, stoneD:0x3b3552, soft:0x6f6690,
+  sunColor:0xd8c4ff, sunI:0.55, hemiSky:0x8f7fc4, hemiGround:0x1b1430, hemiI:0.34,
+  swim:false, sound:false, markLabel:"Fragments",
+  audio:{amb:"static", root:69.30, scale:[0,2,4,6,8,10], pad:"sine", lead:"sine",
+         tempo:96, bossTempo:126, density:0.22, bossDensity:0.36},
+  respawnLine:"The current puts you back together.",
+  spawn:[0,1.4,6], gate:[0,17.6,-44.4],
+  particle:{count:2600, speed:[28,18], len:[0.30,0.50], color:0xc9a6ff,
+            opacity:0.45, sway:0},
+  groundColor:0x1a1430, groundOpacity:1, bedColor:0x0d0918, bedY:-14,
+  surface:(x,z,t)=> Math.sin(x*0.07+t*0.9)*0.5 + Math.sin(z*0.08-t*0.7)*0.45
+                  + Math.sin((x+z)*0.04+t*1.3)*0.3,
+
+  opening:[
+    "There is nothing above Verdance's canopy but pieces.",
+    "The sky over Stormcrown came apart. Not in a war, and not in a night. It simply stopped holding together.",
+    "The four weathers you are carrying did not belong to those towns either. They were fragments of this.",
+    "Rain. Stillness. Heat. Green. Each one lodged somewhere and got locked up by something that thought it was helping.",
+    "You have been carrying the sky around in your chest for four worlds without knowing it."
+  ],
+  lore:[
+    ["First fragment","The sky did not fall. It let go, the way a rope lets go, one thread at a time, over a century."],
+    ["Second fragment","We recorded the pieces as they went. Rain went first, east, and did not come back."],
+    ["Third fragment","Stillness went next, north, into the high country. Then heat, down into the ash lands."],
+    ["Fourth fragment","Green went last and went deepest. We never found where it landed."],
+    ["Fifth fragment","What was left is the Crown, and it has been up there ever since, trying to pull itself back in."],
+    ["Sixth fragment","It cannot reach that far. Everything it pulls on is already being held by something that will not let go."],
+    ["Seventh fragment","We asked the Crown to stop pulling. It said it would stop when it was whole."],
+    ["Eighth fragment","Every town that ended up with a fragment built something to guard it. None of them knew what they had."],
+    ["Ninth fragment","A warden. A slide. A furnace. A tree. Four careful things, each one certain it was doing right."],
+    ["Tenth fragment","Whoever gets here holding all four: you are not a thief. You are the last delivery."]
+  ],
+  markPos:[[7,2.4,1],[-9,5.6,-12],[9,7.4,-16],[0,10.0,-23],[-12,12.6,-29],
+           [12,13.6,-30],[0,16.4,-37],[-18,11.0,-24],[-26,20.0,-18],[26,22.0,-22]],
+  allRead:["Ten fragments read. Four towns, four guardians, four pieces of one sky.",
+           "The Crown is directly overhead and it has been overhead the entire time."],
+
+  npc:{
+    name:"The Cartographer", pos:[-6.4,1.2,2.2], radius:3.6,
+    first:[
+      "Four. You are carrying four. I have been standing on this rock for a very long time hoping somebody would turn up carrying four.",
+      "I mapped the pieces as they went. That is the whole of my work and it took my whole life and it changed nothing.",
+      "The rods are the only fixed things left. Look at one, reach for it, and you will be standing on it. You will not travel. You will simply be there.",
+      "The rooks nest on them. They have never once touched ground and your blade will never once touch them. Arrive on their rod instead.",
+      "Ten fragments of the record are up here on the shards. Read them and you will know what you have been doing.",
+      "And then go up. It is the only direction left, and it has been waiting longer than any of us."
+    ],
+    done:["Go up. And when you get there, understand that the last thing left to do is the one thing you have never done."],
+    pending:n=>[n+" of ten. Read the tenth before you go up. You will want to have read the tenth."],
+    build:g=>{
+      const robe=0x4a4368, trim=0x8f7fb5, skin=0xc4a887;
+      const rb=inked(new THREE.CylinderGeometry(0.26,0.56,1.30,12,1,true),robe);
+      rb.position.y=0.68; rb.userData.fill.material.side=THREE.DoubleSide; g.add(rb);
+      const ts=inked(new THREE.CylinderGeometry(0.23,0.28,0.44,11),robe);
+      ts.position.y=1.42; g.add(ts);
+      const hd=inked(new THREE.SphereGeometry(0.20,13,11),skin);
+      hd.position.set(0,1.80,0.02); g.add(hd);
+      const e=new THREE.Mesh(new THREE.SphereGeometry(0.032,8,8),
+        new THREE.MeshBasicMaterial({color:0x0b0814}));
+      e.position.set(0.08,1.82,0.18); g.add(e);
+      const e2=e.clone(); e2.position.x=-0.08; g.add(e2);
+      // the map, carried open, four marks on it
+      const map=inked(new THREE.BoxGeometry(0.62,0.02,0.44),0xd8cdbd);
+      map.position.set(0,1.16,0.34); map.rotation.x=0.5; g.add(map);
+      for(let i=0;i<4;i++){
+        const pin=new THREE.Mesh(new THREE.SphereGeometry(0.035,8,8),
+          new THREE.MeshBasicMaterial({color:[0x7fe3d6,0x9fc8e8,0xff7a2f,0x9fe06a][i]}));
+        pin.position.set(-0.20+i*0.135, 1.20, 0.30); g.add(pin);
+      }
+      const rodStaff=inked(new THREE.CylinderGeometry(0.03,0.026,1.9,7),trim);
+      rodStaff.position.set(-0.46,0.92,0.04); rodStaff.rotation.z=0.10; g.add(rodStaff);
+    }
+  },
+
+  level(){
+    // shards, not ground. Everything between them is a fall.
+    block(0,-1.2,4, 20,2.4,15, matSoft);
+    block(-9,3.0,-11, 8,2.0,8, matSoft);
+    block(9,5.0,-16, 8,2.0,8, matSoft);
+    block(0,7.6,-23, 10,2.2,9, matSoft);
+    block(-12,10.2,-29, 8,2.0,8, matSoft);
+    block(12,11.2,-30, 8,2.0,8, matSoft);
+    block(0,14.0,-37, 22,2.6,15, matSoft);
+    block(0,16.6,-46, 22,6,2, matStone);
+    block(-11,16.6,-37, 2,6,15, matStone);
+    block(11,16.6,-37, 2,6,15, matStone);
+    // floating debris, unreachable by leg
+    [[-18,8.0,-20],[18,9.5,-24],[-22,14.0,-14],[22,15.5,-18],
+     [-6,12.0,-33],[6,12.5,-34],[-16,17.0,-31],[16,18.0,-32]]
+      .forEach(p=> block(p[0],p[1],p[2], 5,1.2,5, matStoneD, "shard"));
+    // the rods: the only fixed points in a sky that came apart
+    rod(0,1.2,-3);
+    rod(-9,5.0,-11); rod(9,7.0,-16);
+    rod(-18,9.2,-20); rod(18,10.7,-24);
+    rod(0,9.8,-23);
+    rod(-22,15.2,-14); rod(22,16.7,-18);
+    rod(-12,12.2,-29); rod(12,13.2,-30);
+    rod(-6,13.2,-33); rod(6,13.7,-34);
+    rod(-16,18.2,-31); rod(16,19.2,-32);
+    rod(0,16.6,-37);
+    block(-26,18.8,-18, 8,1.2,8, matSoft,"ledge");
+    block(26,20.8,-22, 8,1.2,8, matSoft,"ledge");
+    rod(-26,20.0,-18); rod(26,22.0,-22);
+    // wreckage of whatever stood here before the sky let go
+    [[-15,4.0,-8],[15,6.0,-12],[-19,10.0,-22],[19,12.0,-26],[-8,15.0,-33],[8,16.0,-34]]
+      .forEach(o=> deco(new THREE.BoxGeometry(1.0, 5.5+Math.random()*4, 1.0), 0x4a4368,
+        o[0], o[1], o[2], (Math.random()-0.5)*0.5, Math.random(), (Math.random()-0.5)*0.5));
+    // small shards still orbiting, too far to stand on
+    for(let i=0,N=decoN(22);i<N;i++){
+      const a=Math.random()*Math.PI*2, r=16+Math.random()*18;
+      deco(new THREE.IcosahedronGeometry(0.5+Math.random()*0.9, 0), 0x6f6690,
+        Math.cos(a)*r, 4+Math.random()*22, -18+Math.sin(a)*r,
+        Math.random()*3, Math.random()*3, Math.random()*3);
+    }
+    // the Cartographer's markers: four pins for four fragments
+    [0x7fe3d6,0x9fc8e8,0xff7a2f,0x9fe06a].forEach((c,i)=>{
+      deco(new THREE.CylinderGeometry(0.05,0.05,1.5,6), 0x4a4368, -4+i*1.1, 1.0, 3.2);
+      const tip = deco(new THREE.SphereGeometry(0.17,10,9), c, -4+i*1.1, 1.85, 3.2);
+      tip.userData.fill.material.emissive = new THREE.Color(c);
+    });
+    bounds(-38, 38, -126, 16, -160, 160);
+    return block(0,16.6,-45.5, 7,6,1.2, matStone,"gate");
+  },
+  enemies(){
+    [[-9,7.4,-11],[9,9.4,-16],[-18,11.6,-20],[18,13.1,-24],
+     [0,12.2,-23],[-12,14.6,-29],[12,15.6,-30],[0,19.0,-37]]
+      .forEach(p=>rook(p[0],p[1],p[2],8));
+  },
+
+  boss:{
+    arena:{x:0,y:60,z:-96,r:24},
+    steps:[60,60,60,60],
+    arrive:[0,62.6,-80],
+    sealY:[64,70,76],
+    cadence:2.6, headTrack:0.8, sealZ:0, sealSize:1.15,
+    enterLine:["There is no floor up here. There are rods, and there is the Crown, and there is a very long way down."],
+    name:"The Crown",
+    greet:["YOU HAVE FOUR OF ME."],
+    reply:["I know. I didn't know until an hour ago."],
+    retort:["I HAVE BEEN PULLING AT THEM FOR A CENTURY. THEY WERE HELD. NOW THEY ARE HELD BY YOU."],
+    phases:[
+      ["GIVE THEM BACK."],
+      ["Every guardian I met said something like that. They were all wrong. Convince me you aren't."],
+      ["THEY GUARDED. I AM NOT GUARDING. I AM THE THING THEY WERE PIECES OF."],
+      ["Then you'll understand why I'm going to check first. Four careful things nearly ended four towns."]
+    ],
+    ending:[
+      ["I CANNOT MAKE YOU. I HAVE NEVER BEEN ABLE TO MAKE ANY OF THEM."],
+      ["No. That's the only reason I believe you."],
+      ["THEN OPEN YOUR CHEST, THIEF, AND BE EMPTY FOR THE FIRST TIME."]
+    ],
+    outro:[
+      "Kite opens the hollow and lets go of four things he spent a lifetime learning to hold.",
+      "Rain goes up. Stillness goes up. Heat and green go up after them, and the sky closes over the whole of it.",
+      "Somewhere under a tree a boy sees blue for the first time. In a drowned plaza it stops raining for good.",
+      "The bronze ring on Kite's chest sits empty, and light comes through it."
+    ],
+    next:["The end","A THIEF IS SOMEONE WHO TAKES AND KEEPS. Kite took four things and kept none of them."],
+    clearSky:0x8fd0e8,
+    build(){
+      const A=this.arena;
+      // no floor: a ring of shards and rods, and the drop
+      block(A.x-5, A.y-1.2, A.z+A.r-6, 10,1.2,8, matSoft);
+      bounds(A.x-A.r-2, A.x+A.r+2, A.z-A.r-2, A.z+A.r+2, A.y-40, A.y+70, true);
+      const orbit=[[-13,-4],[13,-4],[-9,-13],[9,-13],[0,-18],[-16,-11],[16,-11]];
+      [0,6,12].forEach((lift,t)=>{
+        orbit.forEach((o,i)=>{
+          if((i+t)%2) return;
+          block(A.x+o[0]-2.2, A.y+2+lift, A.z+o[1]-2.2, 4.4,1.0,4.4, matStoneD,"shard");
+          rod(A.x+o[0], A.y+3+lift, A.z+o[1]);
+        });
+      });
+      rod(A.x, A.y, A.z+A.r-6);
+      const g=new THREE.Group(); g.position.set(A.x,A.y,A.z-10); worldGroup.add(g);
+      const cloud=0x4a4368, edge=0x8f7fb5;
+      // a broken ring of sky, still turning
+      for(let i=0;i<11;i++){
+        const a=i/11*Math.PI*2;
+        if(i===3 || i===8) continue;          // the gaps where the pieces went
+        const sh=inked(new THREE.BoxGeometry(6.5,2.0,3.4), i%2?cloud:edge);
+        sh.position.set(Math.cos(a)*13, 24+Math.sin(a*2)*2.5, Math.sin(a)*7);
+        sh.rotation.z=Math.cos(a)*0.4; sh.rotation.y=-a; g.add(sh);
+      }
+      const hd=new THREE.Group(); hd.position.y=24; g.add(hd);
+      const core2=inked(new THREE.IcosahedronGeometry(4.4,1),cloud);
+      core2.scale.set(1.2,0.9,0.9); hd.add(core2);
+      const eye=new THREE.Mesh(new THREE.SphereGeometry(0.9,14,12),
+        new THREE.MeshBasicMaterial({color:0xc9a6ff}));
+      eye.position.set(0,0,4.4); hd.add(eye);
+      const gl=new THREE.PointLight(0xc9a6ff,2.4,60,2);
+      gl.position.copy(eye.position); hd.add(gl);
+      // the four empty sockets it has been reaching for
+      [0x7fe3d6,0x9fc8e8,0xff7a2f,0x9fe06a].forEach((c,i)=>{
+        const a=i/4*Math.PI*2;
+        const socket=inked(new THREE.TorusGeometry(1.15,0.24,8,18), 0x3b3552);
+        socket.position.set(Math.cos(a)*6.4, 24+Math.sin(a)*3.4, 4.0);
+        socket.rotation.x=Math.PI/2; hd.add(socket);
+      });
+      return {group:g, head:hd, eye:eye, from:new THREE.Vector3(A.x,A.y+30,A.z-10)};
+    },
+    attack(B, dt){
+      // it does not aim. It discharges, and the rods are the safe places.
+      const A=this.arena;
+      for(let i=0;i<4+phase*2;i++){
+        const m=new THREE.Mesh(BOLT_GEO, BOLT_MAT);
+        const a=Math.random()*Math.PI*2, rr=4+Math.random()*16;
+        m.position.set(A.x+Math.cos(a)*rr, A.y+30, A.z+Math.sin(a)*rr-6);
+        scene.add(m);
+        projs.push({m, v:new THREE.Vector3(0,-26,0), life:5, grav:2});
+      }
+    },
+    onPhase(){
+      clearProjs();
+    }
+  }
+}
+];
+
+/* ==========================================================
+   13. ENEMY TYPES
+   ========================================================== */
+function leechKnight(x,z,range){
+  const g=new THREE.Group();
+  const body=inked(new THREE.CylinderGeometry(0.42,0.5,1.25,9),0x3d4d55);
+  body.position.y=0.85; g.add(body);
+  const helm=inked(new THREE.SphereGeometry(0.33,12,10),0x27343c);
+  helm.position.y=1.62; g.add(helm);
+  const horn=inked(new THREE.ConeGeometry(0.07,0.34,6),0x27343c);
+  horn.position.set(0,1.92,-0.04); horn.rotation.x=0.4; g.add(horn);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.08,8,8),
+    new THREE.MeshBasicMaterial({color:0xd2603f}));
+  eye.position.set(0,1.6,0.3); g.add(eye);
+  worldGroup.add(g);
+  enemies.push({kind:"knight", g, eye, legs:[], hp:2, home:new THREE.Vector3(x,0,z),
+    pos:new THREE.Vector3(x,0,z), vel:new THREE.Vector3(), range:range||7,
+    t:Math.random()*6, state:"patrol", hurt:0, dead:false, frozen:0, heard:0,
+    lastHeard:new THREE.Vector3(x,0,z)});
+}
+function wolf(x,z,range){
+  const g=new THREE.Group();
+  const body=inked(new THREE.CylinderGeometry(0.30,0.34,1.15,9),0xe2e9ef);
+  body.rotation.z=Math.PI/2; body.position.y=0.72; g.add(body);
+  const neck=inked(new THREE.CylinderGeometry(0.19,0.23,0.42,8),0xe2e9ef);
+  neck.position.set(0,0.86,0.48); neck.rotation.x=0.85; g.add(neck);
+  const sk=inked(new THREE.SphereGeometry(0.23,12,10),0xeef3f8);
+  sk.scale.set(1,0.9,1.25); sk.position.set(0,0.98,0.74); g.add(sk);
+  const sn=inked(new THREE.ConeGeometry(0.10,0.34,7),0xd5dee6);
+  sn.rotation.x=Math.PI/2; sn.position.set(0,0.93,1.02); g.add(sn);
+  const eg=new THREE.ConeGeometry(0.075,0.20,6);
+  const e1=inked(eg,0xd5dee6); e1.position.set(-0.12,1.18,0.66); e1.rotation.z=0.24; g.add(e1);
+  const e2=inked(eg,0xd5dee6); e2.position.set(0.12,1.18,0.66); e2.rotation.z=-0.24; g.add(e2);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.055,8,8),
+    new THREE.MeshBasicMaterial({color:0xc4564a}));
+  eye.position.set(0,1.01,0.90); g.add(eye);
+  const lg=new THREE.CylinderGeometry(0.062,0.05,0.52,7), legs=[];
+  [[-0.20,0.42],[0.20,0.42],[-0.20,-0.36],[0.20,-0.36]].forEach(o=>{
+    const l=inked(lg,0xd5dee6); l.position.set(o[0],0.26,o[1]); g.add(l); legs.push(l);
+  });
+  const tl=inked(new THREE.CylinderGeometry(0.07,0.03,0.55,7),0xe2e9ef);
+  tl.position.set(0,0.82,-0.62); tl.rotation.x=-0.7; g.add(tl);
+  worldGroup.add(g);
+  enemies.push({kind:"wolf", g, eye, legs, hp:2, home:new THREE.Vector3(x,0,z),
+    pos:new THREE.Vector3(x,0,z), vel:new THREE.Vector3(), range:range||8,
+    t:Math.random()*6, state:"patrol", hurt:0, dead:false, frozen:0, heard:0,
+    lastHeard:new THREE.Vector3(x,0,z)});
+}
+
+function glassSpider(x,z,range){
+  const g=new THREE.Group();
+  const body=inked(new THREE.IcosahedronGeometry(0.44,0),0x8fd2c8);
+  body.position.y=0.86; body.scale.set(1.2,0.8,1.3); g.add(body);
+  const abd=inked(new THREE.IcosahedronGeometry(0.34,0),0x8fd2c8);
+  abd.position.set(0,0.90,-0.62); abd.scale.set(1,0.9,1.2); g.add(abd);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,8),
+    new THREE.MeshBasicMaterial({color:0xc4564a}));
+  eye.position.set(0,0.94,0.52); g.add(eye);
+  const lg=new THREE.CylinderGeometry(0.038,0.026,0.86,6), legs=[];
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2;
+    const l=inked(lg,0x9fdcd2);
+    l.position.set(Math.cos(a)*0.52, 0.50, Math.sin(a)*0.52);
+    l.rotation.z=Math.cos(a)*0.85; l.rotation.x=-Math.sin(a)*0.85;
+    g.add(l); legs.push(l);
+  }
+  worldGroup.add(g);
+  enemies.push({kind:"glass", glass:true, hot:0, body, g, eye, legs, hp:2,
+    home:new THREE.Vector3(x,0,z), pos:new THREE.Vector3(x,0,z),
+    vel:new THREE.Vector3(), range:range||7, t:Math.random()*6,
+    state:"patrol", hurt:0, dead:false, frozen:0, heard:0,
+    lastHeard:new THREE.Vector3(x,0,z)});
+}
+
+function choker(x,z,range){
+  const g=new THREE.Group();
+  const stalk=inked(new THREE.CylinderGeometry(0.16,0.30,1.30,8),0x4a6b2e);
+  stalk.position.y=0.65; g.add(stalk);
+  const head=inked(new THREE.ConeGeometry(0.36,0.72,8),0x6f3f52);
+  head.position.y=1.58; head.rotation.x=Math.PI; g.add(head);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.075,8,8),
+    new THREE.MeshBasicMaterial({color:0xc4564a}));
+  eye.position.set(0,1.40,0.30); g.add(eye);
+  const fg=new THREE.CylinderGeometry(0.05,0.03,0.60,6), legs=[];
+  for(let i=0;i<5;i++){
+    const a=(i/5)*Math.PI*2;
+    const l=inked(fg,0x4a6b2e);
+    l.position.set(Math.cos(a)*0.26, 0.28, Math.sin(a)*0.26);
+    l.rotation.z=Math.cos(a)*0.9; l.rotation.x=-Math.sin(a)*0.9;
+    g.add(l); legs.push(l);
+  }
+  g.scale.setScalar(0.15);            // dormant, folded into the floor
+  worldGroup.add(g);
+  enemies.push({kind:"choker", g, eye, legs, hp:2, home:new THREE.Vector3(x,0,z),
+    pos:new THREE.Vector3(x,0,z), vel:new THREE.Vector3(), range:range||9,
+    t:Math.random()*6, state:"patrol", hurt:0, dead:false, frozen:0, hot:0,
+    heard:0, lastHeard:new THREE.Vector3(x,0,z), wake:0});
+}
+
+function rook(x,y,z,range){
+  const g=new THREE.Group();
+  const body=inked(new THREE.SphereGeometry(0.34,12,10),0x2f2a3d);
+  body.scale.set(1,0.85,1.35); body.position.y=0.5; g.add(body);
+  const head=inked(new THREE.SphereGeometry(0.20,11,9),0x3a3350);
+  head.position.set(0,0.80,0.30); g.add(head);
+  const beak=inked(new THREE.ConeGeometry(0.07,0.30,6),0xb9944f);
+  beak.rotation.x=Math.PI/2; beak.position.set(0,0.78,0.56); g.add(beak);
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8),
+    new THREE.MeshBasicMaterial({color:0xc9a6ff}));
+  eye.position.set(0,0.84,0.44); g.add(eye);
+  const wg=new THREE.BoxGeometry(0.9,0.06,0.42), legs=[];
+  const w1=inked(wg,0x3a3350); w1.position.set(-0.58,0.54,0); g.add(w1); legs.push(w1);
+  const w2=inked(wg,0x3a3350); w2.position.set(0.58,0.54,0); g.add(w2); legs.push(w2);
+  worldGroup.add(g);
+  enemies.push({kind:"rook", arcOnly:true, g, eye, legs, hp:2,
+    home:new THREE.Vector3(x,y,z), pos:new THREE.Vector3(x,y,z),
+    vel:new THREE.Vector3(), range:range||8, t:Math.random()*6,
+    state:"patrol", hurt:0, dead:false, frozen:0, hot:0, wake:0,
+    heard:0, lastHeard:new THREE.Vector3(x,y,z), fly:y});
+}
+
+/* ==========================================================
+   14. BOSS RUNTIME — shared shell, per-world content
+   ========================================================== */
+const PROJ_GEO = new THREE.SphereGeometry(0.42,10,8);
+const PROJ_GEO_ICO = new THREE.IcosahedronGeometry(0.62,0);
+const PROJ_MAT = new THREE.MeshBasicMaterial({color:0x9fd8e4});
+const MOLTEN_MAT = new THREE.MeshBasicMaterial({color:0xff9a3f});
+const SEED_MAT = new THREE.MeshBasicMaterial({color:0xcbe89a});
+const BOLT_GEO = new THREE.CylinderGeometry(0.10,0.10,2.6,6);
+const BOLT_MAT = new THREE.MeshBasicMaterial({color:0xe4d4ff});
+let inBoss=false, phase=0, atkT=0, ended=false, clearing=0;
+let B = null, seals = [], projs = [], gateMesh = null;
+
+function dropProj(i){
+  const p = projs[i];
+  if(p.col){ const k=colliders.indexOf(p.col); if(k>=0) colliders.splice(k,1); }
+  scene.remove(p.m); projs.splice(i,1);
+}
+function clearProjs(){ while(projs.length) dropProj(0); }
+
+function enterBoss(){
+  const bs = W.boss;
+  inBoss = true; phase = 0; atkT = 2.5; ended = false;
+  AUDIO.setBoss(true);
+  clearColumns();
+  drifters.forEach(d=>{ if(d.frozen>0) thawDrifter(d); });
+  player.pos.fromArray(bs.arrive); player.vel.set(0,0,0);
+  player.spawn.fromArray(bs.arrive);
+  player.health = CFG.maxHealth; player.mana = CFG.manaMax;
+  setGround(bs.steps[0]);
+  scene.fog.density = W.fogDensity*1.3;
+  say("", bs.enterLine,
+   ()=> say(bs.name, bs.greet,
+   ()=> say("Kite", bs.reply,
+   ()=> say(bs.name, bs.retort))));
+}
+function breakSeal(sl){
+  const bs = W.boss;
+  sl.broken = true;
+  sl.eye.material.color.setHex(0x40525f);
+  ringBurst(sl.g.position.clone());
+  AUDIO.sfx("seal");
+  phase++;
+  bs.onPhase.call(bs);
+  if(phase >= 3){ endWorld(); return; }
+  say(bs.name, bs.phases[(phase-1)*2], ()=> say("Kite", bs.phases[(phase-1)*2+1]));
+}
+function endWorld(){
+  const bs = W.boss;
+  ended = true;
+  AUDIO.setBoss(false);
+  B.eye.material.color.setHex(W.accent);
+  PROGRESS.cleared.push(W.id);
+  const next = WORLDS.findIndex(w=>w.id===W.id) + 1;
+  PROGRESS.reached = Math.max(PROGRESS.reached, Math.min(next, WORLDS.length-1));
+  say(bs.name, bs.ending[0],
+   ()=> say("Kite", bs.ending[1],
+   ()=> say(bs.name, bs.ending[2],
+   ()=> {
+     clearing = 0.0001;
+     say("", bs.outro, ()=>{
+       carve(bs.next[0], bs.next[1]);
+       setTimeout(()=>{ if(!dlg.on) openTitle(); }, 7000);
+     });
+   })));
+}
+function bossTick(dt){
+  if(!inBoss || !B) return;
+  const bs = W.boss;
+  const toP = player.pos.clone().sub(B.group.position);
+  B.head.rotation.y = Math.atan2(toP.x, toP.z) * (W.boss.headTrack !== undefined ? W.boss.headTrack : 1);
+  const sl = seals[phase];
+
+  if(!ended && !dlg.on){
+    atkT -= dt;
+    if(atkT <= 0){
+      atkT = (W.boss.cadence || 2.9) - phase*0.6;
+      bs.attack.call(bs, B, dt);
+    }
+  }
+
+  for(let i=projs.length-1;i>=0;i--){
+    const p = projs[i];
+    p.life -= dt;
+    if(p.frozen > 0){
+      p.frozen -= dt;
+      if(p.frozen <= 0){
+        const k=colliders.indexOf(p.col); if(k>=0) colliders.splice(k,1);
+        p.col=null;
+        if(p.m.userData.fill) p.m.userData.fill.material.color.setHex(0xe9f1f7);
+      } else if(p.col){
+        const pp=p.m.position, r=p.r*0.85;
+        p.col.min.set(pp.x-r,pp.y-r,pp.z-r);
+        p.col.max.set(pp.x+r,pp.y+r,pp.z+r);
+      }
+    } else {
+      p.v.y -= p.grav*dt;
+      p.m.position.addScaledVector(p.v, dt);
+      if(p.solid){ p.m.rotation.x += dt*2.4; p.m.rotation.z += dt*1.7; }
+      const near = p.m.position.distanceTo(player.pos.clone().add(new THREE.Vector3(0,0.85,0)));
+      if(near < (p.r||0.42)+0.8 && !dlg.on){ hurt(1); p.life = 0; }
+    }
+    if(p.life <= 0 || p.m.position.y < bs.arena.y - 16) dropProj(i);
+  }
+
+  if(sl && !sl.broken){
+    const k = 0.55 + Math.sin(clock*3.4)*0.2;
+    sl.eye.material.color.setRGB(0.4*k, 0.78*k, 0.86*k);
+    sl.g.rotation.z += dt*0.7;
+  }
+}
+// Still can catch the boss's falling mass and turn it into stairs
+function stillProjectile(){
+  ray.setFromCamera({x:0,y:0}, camera);
+  let best=null, bd=Infinity;
+  for(const p of projs){
+    if(!p.solid || p.frozen > 0) continue;
+    const d = p.m.position.distanceTo(camera.position);
+    if(d > CFG.castRange) continue;
+    if(ray.ray.distanceToPoint(p.m.position) < (p.r||0.6)*2.4*CFG.aimAssist && d < bd){ best=p; bd=d; }
+  }
+  if(!best) return false;
+  best.frozen = CFG.stillTime;
+  best.life = Math.max(best.life, CFG.stillTime+0.5);
+  if(best.m.userData.fill) best.m.userData.fill.material.color.setHex(0xcfe4f6);
+  best.col = {min:new THREE.Vector3(), max:new THREE.Vector3(), tag:"frozen"};
+  colliders.push(best.col);
+  ringBurst(best.m.position.clone());
+  return true;
+}
+
+/* ==========================================================
+   15. NPC
+   ========================================================== */
+let inRange = false;
+function talk(){
+  if(dlg.on || !NPC) return;
+  const n = W.npc;
+  if(!NPC.met){ NPC.met = true; say(n.name, n.first); return; }
+  say(n.name, collected >= 10 ? n.done : n.pending(collected));
+}
+
+/* ==========================================================
+   16. WORLD LOADING
+   ========================================================== */
+function setGround(y){
+  CFG.waterLevel = y;
+  if(ground) ground.position.y = y;
+  planeGround.constant = -y;
+}
+function disposeWorld(){
+  while(worldGroup.children.length) worldGroup.remove(worldGroup.children[0]);
+  scene.remove(worldGroup);
+  worldGroup = new THREE.Group(); scene.add(worldGroup);
+  colliders.length = 0; solidMeshes.length = 0;
+  enemies.length = 0; drifters.length = 0;
+  forges.length = 0; buds.length = 0; rods.length = 0;
+  barriers.length = 0; linger = 0;
+  worldLimit = null; arenaLimit = null;
+  shellCache.clear();
+  marks.length = 0; columns.length = 0;
+  clearProjs(); seals = []; B = null;
+  holding = null; collected = 0;
+  inBoss = false; phase = 0; ended = false; clearing = 0;
+  if(weather){ scene.remove(weather); weather = null; }
+  ground = null; npcGroup = null; NPC = null;
+}
+
+const markGeo = new THREE.OctahedronGeometry(0.34,0);
+const planeGround = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const ray = new THREE.Raycaster();
+const hitPt = new THREE.Vector3();
+
+function loadWorld(idx){
+  disposeWorld();
+  W = WORLDS[idx];
+
+  // look
+  scene.background = new THREE.Color(W.fogColor);
+  scene.fog = new THREE.FogExp2(W.fogColor, W.fogDensity);
+  sun.color.setHex(W.sunColor); sun.intensity = W.sunI;
+  hemi.color.setHex(W.hemiSky); hemi.groundColor.setHex(W.hemiGround); hemi.intensity = W.hemiI;
+  INK.color.setHex(W.ink || 0x0a121a);
+  document.documentElement.style.setProperty("--accent",
+    "#"+W.accent.toString(16).padStart(6,"0"));
+
+  matStone  = toon(W.stone);
+  matStoneD = toon(W.stoneD);
+  matSoft   = toon(W.soft);
+  matColumn = new THREE.MeshStandardMaterial({
+    color:W.accent, transparent:true, opacity:0.66,
+    roughness:0.1, emissive:W.accent, emissiveIntensity:0.42
+  });
+
+  // ground plane
+  groundGeo = new THREE.PlaneGeometry(420,420, COARSE?28:48, COARSE?28:48);
+  groundGeo.rotateX(-Math.PI/2);
+  const gm = W.groundOpacity < 1
+    ? new THREE.MeshToonMaterial({color:W.groundColor, gradientMap:RAMP,
+        transparent:true, opacity:W.groundOpacity})
+    : new THREE.MeshToonMaterial({color:W.groundColor, gradientMap:RAMP});
+  ground = new THREE.Mesh(groundGeo, gm);
+  ground.receiveShadow = true; worldGroup.add(ground);
+  groundBase = groundGeo.attributes.position.array.slice();
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(420,420),
+    new THREE.MeshToonMaterial({color:W.bedColor, gradientMap:RAMP}));
+  bed.rotation.x = -Math.PI/2; bed.position.y = W.bedY; worldGroup.add(bed);
+  setGround(0);
+
+  // weather particles
+  const P = W.particle;
+  weatherGeo = new THREE.BufferGeometry();
+  const n = COARSE ? Math.round(P.count*0.5) : P.count;
+  const arr = new Float32Array(n*6); weatherVel = new Float32Array(n);
+  for(let i=0;i<n;i++){
+    const x=(Math.random()-0.5)*90, y=Math.random()*46-4, z=(Math.random()-0.5)*90;
+    const len = P.len[0] + Math.random()*P.len[1];
+    arr[i*6]=x; arr[i*6+1]=y; arr[i*6+2]=z;
+    arr[i*6+3]=x; arr[i*6+4]=y-len; arr[i*6+5]=z;
+    weatherVel[i] = P.speed[0] + Math.random()*P.speed[1];
+  }
+  weatherGeo.setAttribute("position", new THREE.BufferAttribute(arr,3));
+  weather = new THREE.LineSegments(weatherGeo, new THREE.LineBasicMaterial({
+    color:P.color, transparent:true, opacity:P.opacity
+  }));
+  weather.frustumCulled = false; scene.add(weather);
+
+  // level, enemies, boss arena
+  gateMesh = W.level();
+  W.enemies();
+  B = W.boss.build.call(W.boss);
+  W.boss.sealY.forEach((sy,i)=>{
+    const g = new THREE.Group();
+    const A = W.boss.arena;
+    const sz = W.boss.sealSize || 1;
+    g.position.set(A.x, sy, A.z + (W.boss.sealZ !== undefined ? W.boss.sealZ : 2.9));
+    g.add(inked(new THREE.TorusGeometry(0.95*sz, 0.22, 8, 20), 0x8f7040));
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.66*sz,14,12),
+      new THREE.MeshBasicMaterial({color:0x53707d}));
+    g.add(eye);
+    worldGroup.add(g);
+    seals.push({g, eye, hp:3, broken:false, idx:i});
+  });
+
+  // records
+  W.markPos.forEach((p,i)=>{
+    const m = inked(markGeo, W.accent);
+    m.position.set(p[0],p[1],p[2]);
+    worldGroup.add(m);
+    marks.push({mesh:m, taken:false, base:p[1], idx:i});
+  });
+  mcLbl.textContent = W.markLabel;
+  solidMeshes = colliders.filter(c=>c.mesh).map(c=>c.mesh);
+
+  // npc
+  npcGroup = new THREE.Group();
+  W.npc.build(npcGroup);
+  npcGroup.position.fromArray(W.npc.pos);
+  npcGroup.rotation.y = 0.9;
+  worldGroup.add(npcGroup);
+  NPC = {pos:new THREE.Vector3().fromArray(W.npc.pos), met:false, radius:W.npc.radius};
+
+  // player state
+  player.pos.fromArray(W.spawn);
+  player.spawn.fromArray(W.spawn);
+  player.vel.set(0,0,0);
+  player.health = CFG.maxHealth;
+  player.mana = CFG.manaMax;
+  player.invuln = 1;
+  // you always leave a world holding its weather; revisits keep what you had
+  const wasHolding = player.magic;
+  const revisit = PROGRESS.cleared.indexOf(W.id) >= 0;
+  learn(W.magic);
+  if(revisit && wasHolding && player.magics.indexOf(wasHolding) >= 0) player.magic = wasHolding;
+  AUDIO.setWorld(W);
+
+  earEl.classList.toggle("on", !!W.sound);
+  worldTag.textContent = W.name;
+  swapBtn.style.display = (isTouch && player.magics.length > 1) ? "block" : "none";
+  castBtn.textContent = MAGIC[player.magic].name;
+  castBtn.setAttribute("aria-label", "Use " + MAGIC[player.magic].name + ": " + MAGIC[player.magic].blurb);
+  core.material.color.setHex(MAGIC[player.magic].color);
+  coreGlow.color.setHex(MAGIC[player.magic].color);
+  spark.material.color.setHex(MAGIC[player.magic].color);
+  paintSatchel(); paintHUD();
+}
+
+/* ==========================================================
+   16b. TELLING THE PLAYER WHAT TO DO
+   Two layers. The tutorial teaches a verb at a time and only
+   advances when the player actually does it. The objective line
+   takes over afterwards and always says the current goal.
+   ========================================================== */
+const objEl = document.getElementById("objective");
+const helpEl = document.getElementById("help");
+let tutStep = 0, tutDone = false, objText = "", helpOpen = false;
+const seenWorlds = {};
+
+function key(k, tk){ return "<kbd>" + (isTouch && tk ? tk : k) + "</kbd>"; }
+
+// Each step shows one thing and waits for the player to do it.
+const TUTORIAL = [
+  {tag:"Move",
+   text:()=> "Walk with " + key("W A S D","the left side of the screen") + ".",
+   done:()=> tutMoved > 2},
+  {tag:"Look",
+   text:()=> isTouch
+     ? "Drag the right side of the screen to look. The camera also swings in behind you as you run, and a single tap there snaps it straight behind."
+     : "Move the mouse to look around. Press " + key("R") + " to snap the camera behind you.",
+   done:()=> tutLooked > 1.2},
+  {tag:"Jump",
+   text:()=> "Press " + key("Space","JUMP") + " to jump. Press it again in mid-air for a second jump.",
+   done:()=> tutJumped >= 2},
+  {tag:"Talk",
+   text:()=> "Someone is waiting on the landing. Get close and press " + key("E","TALK") + ".",
+   done:()=> NPC && NPC.met},
+  {tag:"Use the weather",
+   text:()=> "You are carrying " + MAGIC[player.magic].name + ". " + MAGIC[player.magic].blurb +
+             " Hold " + key("right mouse", MAGIC[player.magic].name.toUpperCase()) + ".",
+   done:()=> tutCast > 0},
+  {tag:"Now go",
+   text:()=> "That is the whole trick. Find the ten " + W.markLabel.toLowerCase() +
+             " scattered across this world.",
+   done:()=> collected >= 1}
+];
+let tutMoved = 0, tutLooked = 0, tutJumped = 0, tutCast = 0, tutHold = 0;
+
+function objective(){
+  if(!W) return "";
+  if(inBoss){
+    if(ended) return "";
+    const left = 3 - phase;
+    return "Break " + (left === 3 ? "the three seals" : left + " more seal" + (left>1?"s":"")) +
+           ". Use " + MAGIC[player.magic].name + " to reach " + (left>1 ? "them" : "it") + ".";
+  }
+  if(collected >= 10) return "Every record read. Go to the gate at the far end.";
+  if(NPC && !NPC.met) return "Speak to " + W.npc.name + " on the landing.";
+  return "Read the " + W.markLabel.toLowerCase() + " scattered across this world. " +
+         collected + " of 10 so far.";
+}
+function showObjective(txt, tag){
+  if(txt === objText) return;
+  objText = txt;
+  if(!txt){ objEl.classList.remove("on"); return; }
+  objEl.innerHTML = '<span class="tag"></span>' + txt;
+  const t = objEl.querySelector(".tag");
+  if(t) t.textContent = tag || "Now";
+  objEl.classList.add("on");
+}
+
+function guideTick(dt){
+  if(!W || dlg.on || helpOpen){ objEl.classList.remove("on"); objText = "_"; return; }
+  const spd = Math.hypot(player.vel.x, player.vel.z);
+  if(spd > 1) tutMoved += dt;
+  if(!tutDone && tutStep < TUTORIAL.length){
+    const step = TUTORIAL[tutStep];
+    showObjective(step.text(), step.tag);
+    if(step.done()){
+      tutHold += dt;
+      if(tutHold > 1.1){            // let the success register before moving on
+        tutHold = 0; tutStep++;
+        if(tutStep >= TUTORIAL.length){ tutDone = true; seenWorlds[W.id] = true; }
+      }
+    } else tutHold = 0;
+    return;
+  }
+  showObjective(objective(), inBoss ? "Objective" : "Now");
+}
+
+/* ---------- pause / help ---------- */
+function openHelp(){
+  if(!running || helpOpen) return;
+  helpOpen = true;
+  helpEl.classList.add("on");
+  if(document.exitPointerLock) document.exitPointerLock();
+  AUDIO.suspend();
+  mouseL = mouseR = false; creepTouch = false;
+  touch.on = false; touch.mx = 0; touch.mz = 0;
+  for(const k in keys) keys[k] = false;
+
+  const held = MAGIC[player.magic];
+  document.getElementById("helpNow").innerHTML =
+    "<b>" + W.name + "</b> &mdash; " + W.sub + ".<br>" +
+    "You are holding <b>" + held.name + "</b>. " + held.blurb + "<br><br>" +
+    (objective() || "Finish the conversation.");
+
+  const cast = held.name;
+  document.getElementById("helpMove").innerHTML = [
+    [isTouch ? "Left thumb" : "W A S D", "Move"],
+    [isTouch ? "Right thumb" : "Mouse", "Look around"],
+    [isTouch ? "JUMP" : "Space", "Jump &mdash; press again in the air to double jump"],
+    [isTouch ? "&mdash;" : "Shift", "Sprint <i>(louder)</i>"],
+    [isTouch ? "CREEP" : "Ctrl", "Creep <i>(quieter)</i>"]
+  ].map(r=> "<b>"+r[0]+"</b><span>"+r[1]+"</span>").join("");
+
+  document.getElementById("helpAct").innerHTML = [
+    [isTouch ? cast.toUpperCase() : "Right mouse", "Use weather <i>(" + cast + ")</i> &mdash; " + held.blurb],
+    [isTouch ? "SURGE" : "Left mouse", "Attack <i>(Surge)</i>"],
+    [isTouch ? "SWAP" : "Q", "Change held weather <i>(" + player.magics.length + " carried)</i>"],
+    [isTouch ? "TALK" : "E", "Speak to someone nearby"],
+    [isTouch ? "SOUND" : "M", "Volume: full, quiet, off"],
+    [isTouch ? "HELP" : "H", "This panel"],
+    [isTouch ? "Tap the right side" : "R", "Snap the camera behind you"],
+    [isTouch ? "CAMERA" : "C", "Auto-follow camera <i>(" + (autoFollow ? "on" : "off") + ")</i>"]
+  ].map(r=> "<b>"+r[0]+"</b><span>"+r[1]+"</span>").join("");
+}
+function closeHelp(){
+  if(!helpOpen) return;
+  helpOpen = false;
+  helpEl.classList.remove("on");
+  AUDIO.resume();
+  last = performance.now();
+  if(!isTouch && renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+}
+document.getElementById("helpClose").addEventListener("click", closeHelp);
+
+/* ==========================================================
+   17. TITLE / WORLD SELECT
+   ========================================================== */
+const titleEl = document.getElementById("title");
+const picker  = document.getElementById("picker");
+let running = false;
+
+function openTitle(){
+  running = false;
+  AUDIO.stop();
+  document.getElementById("hud").classList.remove("on");
+  titleEl.classList.remove("hidden");
+  if(document.exitPointerLock) document.exitPointerLock();
+  buildPicker();
+}
+function buildPicker(){
+  picker.innerHTML = "";
+  WORLDS.forEach((w,i)=>{
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "wbtn";
+    b.disabled = i > PROGRESS.reached;
+    b.setAttribute("aria-label",
+      w.name + ", " + w.sub + ", weather: " + MAGIC[w.magic].name +
+      (i > PROGRESS.reached ? ", locked" : ""));
+    const cleared = PROGRESS.cleared.indexOf(w.id) >= 0;
+    b.innerHTML =
+      '<span class="dot" style="background:#'+w.accent.toString(16).padStart(6,"0")+'"></span>'+
+      '<span class="txt"><span class="nm">'+w.name+'</span>'+
+      '<span class="sub">'+w.sub+' &nbsp;·&nbsp; '+MAGIC[w.magic].name+'</span></span>'+
+      '<span class="rt">'+(b.disabled ? "Locked" : (cleared ? "Cleared" : "Open"))+'</span>';
+    b.addEventListener("click", ()=> startWorld(i));
+    picker.appendChild(b);
+  });
+}
+function startWorld(i){
+  AUDIO.init(); AUDIO.resume();
+  titleEl.classList.add("hidden");
+  document.getElementById("hud").classList.add("on");
+  loadWorld(i);
+  if(renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+  running = true; last = performance.now();
+  const firstTime = PROGRESS.cleared.indexOf(W.id) < 0;
+  // Full tutorial only in the very first world. After that the player
+  // knows the verbs, so later worlds get one line about the new one.
+  tutMoved = tutLooked = tutJumped = tutCast = tutHold = 0;
+  const veteran = player.magics.length > 1 || seenWorlds[W.id];
+  tutStep = veteran ? TUTORIAL.length - 2 : 0;
+  tutDone = false;
+  objText = "";
+  if(firstTime){
+    say("", W.opening, ()=> toast(MAGIC[W.magic].blurb, 4.5));
+  } else {
+    tutDone = true;
+    toast("Back in " + W.name + ". Everything you took is still yours.", 4);
+  }
+}
+
+/* ==========================================================
+   18. LOOP
+   ========================================================== */
+const camPos = new THREE.Vector3(0,3,10);
+const wish = new THREE.Vector3(), fwd = new THREE.Vector3(), right = new THREE.Vector3();
+let last = performance.now(), clock = 0, surfTick = 0;
+let fpsAccum = 0, fpsFrames = 0, noTargetT = 0;
+const CAST_HINT = {
+  draw:  "Draw needs open water. Face out over the flood.",
+  still: "Still needs something moving. Look for the drifting shapes.",
+  forge: "Forge needs cold slag. Face one of the grey pillars.",
+  grow:  "Grow needs a bud. Face one of the green knots on the trunks.",
+  arc:   "Arc needs a rod. Face one of the lit poles."
+};
+
+function tick(now){
+  requestAnimationFrame(tick);
+  // Clamped at both ends: a backwards timestamp (clock skew, a resumed
+  // tab, a timebase mismatch) would otherwise run the simulation in reverse.
+  const dt = Math.max(0, Math.min((now-last)/1000, 0.05));
+  last = now;
+  if(hidden){ return; }          // backgrounded: no physics, no draw
+  if(!running || !W) return;
+  if(helpOpen){ renderer.render(scene, camera); return; }   // paused, still visible
+  clock += dt;
+
+  /* ---- ground surface ----
+     Low-frequency waves oversampled at 60fps were the single
+     biggest cost in the frame. Same look, a third of the work. */
+  surfTick++;
+  if(surfTick % (COARSE ? 3 : 2) === 0){
+    const gp = groundGeo.attributes.position;
+    for(let i=0;i<gp.count;i++){
+      gp.array[i*3+1] = W.surface(groundBase[i*3], groundBase[i*3+2], clock);
+    }
+    gp.needsUpdate = true;
+    if(surfTick % (COARSE ? 12 : 8) === 0) groundGeo.computeVertexNormals();
+  }
+
+  /* ---- weather ---- */
+  const wp = weatherGeo.attributes.position.array;
+  const P = W.particle, cnt = wp.length/6;
+  for(let i=0;i<cnt;i++){
+    const drop = weatherVel[i]*dt*(P.rise ? -1 : 1);
+    wp[i*6+1] -= drop; wp[i*6+4] -= drop;
+    if(P.sway){
+      const s = Math.sin(clock*1.3+i)*dt*P.sway;
+      wp[i*6] += s; wp[i*6+3] += s;
+    }
+    const gone = P.rise ? (wp[i*6+1] > camera.position.y + 26)
+                        : (wp[i*6+4] < camera.position.y - 22);
+    if(gone){
+      const nx=camera.position.x+(Math.random()-0.5)*90;
+      const nz=camera.position.z+(Math.random()-0.5)*90;
+      const ny=camera.position.y+(P.rise ? -20 : 24);
+      const len=wp[i*6+1]-wp[i*6+4];
+      wp[i*6]=nx; wp[i*6+1]=ny; wp[i*6+2]=nz;
+      wp[i*6+3]=nx; wp[i*6+4]=ny-len; wp[i*6+5]=nz;
+    }
+  }
+  weatherGeo.attributes.position.needsUpdate = true;
+
+  /* ---- movement ---- */
+  fwd.set(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  right.set(Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  wish.set(0,0,0);
+  if(keys.KeyW) wish.add(fwd);
+  if(keys.KeyS) wish.sub(fwd);
+  if(keys.KeyD) wish.add(right);
+  if(keys.KeyA) wish.sub(right);
+  if(touch.on){ wish.addScaledVector(fwd,-touch.mz); wish.addScaledVector(right,touch.mx); }
+  if(dlg.on) wish.set(0,0,0);
+  if(wish.lengthSq() > 0) wish.normalize();
+
+  player.inWater = W.swim && player.pos.y < CFG.waterLevel - 0.35;
+
+  const sprinting = keys.ShiftLeft || keys.ShiftRight;
+  const creeping  = keys.ControlLeft || keys.ControlRight || creepTouch;
+  let target = player.inWater ? CFG.swimSpeed
+             : (creeping ? CFG.creepSpeed : (sprinting ? CFG.sprintSpeed : CFG.runSpeed));
+
+  const spd0 = Math.hypot(player.vel.x, player.vel.z);
+  noise = creeping ? spd0*0.16 : spd0*(sprinting ? 1.5 : 0.85);
+  if(!player.grounded) noise *= 0.55;
+  // Whitefell punishes speed. Verdance punishes standing still.
+  if(spd0 < 1.2 && player.grounded && !dlg.on) linger += dt;
+  else linger = Math.max(0, linger - dt*2.2);
+
+  const acc = (player.grounded ? CFG.accel : CFG.airAccel) * (player.inWater ? 0.55 : 1);
+  player.vel.x += (wish.x*target - player.vel.x) * Math.min(acc*dt/target*2.4, 1);
+  player.vel.z += (wish.z*target - player.vel.z) * Math.min(acc*dt/target*2.4, 1);
+  if(wish.lengthSq()===0 && player.grounded){
+    const f = Math.max(0, 1-CFG.friction*dt);
+    player.vel.x *= f; player.vel.z *= f;
+  }
+
+  if(player.inWater){
+    player.vel.y += CFG.buoyancy*dt;
+    player.vel.y *= Math.max(0, 1-CFG.waterDrag*dt);
+    player.vel.y = Math.min(player.vel.y, 3.2);
+    player.jumps = 0;
+  } else player.vel.y -= CFG.gravity*dt;
+  const fallSpeed = player.vel.y;
+
+  player.coyote -= dt; player.buffered -= dt;
+  if(player.buffered > 0){
+    if(player.grounded || player.coyote > 0){
+      player.vel.y = CFG.jumpVel; player.jumps = 1;
+      player.buffered = 0; player.coyote = 0; player.grounded = false;
+      AUDIO.sfx("jump"); tutJumped++;
+    } else if(player.inWater){
+      player.vel.y = CFG.jumpVel*0.62; player.jumps = 1; player.buffered = 0;
+    } else if(player.jumps === 1){
+      player.vel.y = CFG.doubleJumpVel; player.jumps = 2; player.buffered = 0;
+      ringBurst(player.pos.clone().add(new THREE.Vector3(0,0.4,0)));
+      AUDIO.sfx("doubleJump"); tutJumped++;
+    }
+  }
+  if(!keys.Space && player.vel.y > 4 && !player.inWater) player.vel.y -= 22*dt;
+
+  const wasAir = !player.grounded;
+  player.grounded = false;
+  player.pos.x += player.vel.x*dt; resolveAxis("x");
+  player.pos.z += player.vel.z*dt; resolveAxis("z");
+  player.pos.y += player.vel.y*dt; resolveAxis("y");
+  if(wasAir && player.grounded && fallSpeed < -6) AUDIO.sfx("land");
+  // Walls give the collision the right feel. This guarantees the result.
+  const lim = (inBoss && arenaLimit) ? arenaLimit : worldLimit;
+  if(lim){
+    const R2 = CFG.playerRadius;
+    if(player.pos.x < lim.minX + R2){ player.pos.x = lim.minX + R2; player.vel.x = Math.max(0, player.vel.x); }
+    if(player.pos.x > lim.maxX - R2){ player.pos.x = lim.maxX - R2; player.vel.x = Math.min(0, player.vel.x); }
+    if(player.pos.z < lim.minZ + R2){ player.pos.z = lim.minZ + R2; player.vel.z = Math.max(0, player.vel.z); }
+    if(player.pos.z > lim.maxZ - R2){ player.pos.z = lim.maxZ - R2; player.vel.z = Math.min(0, player.vel.z); }
+  }
+  const floorLimit = inBoss ? W.boss.arena.y - 14 : -8;
+  if(player.pos.y < floorLimit) respawn();
+
+  /* ---- cast ---- */
+  const held = MAGIC[player.magic];
+  let live = false;
+
+  if(player.magic === "draw"){
+    ray.setFromCamera({x:0,y:0}, camera);
+    let aim = null;
+    if(ray.ray.intersectPlane(planeGround, hitPt)){
+      const d = hitPt.distanceTo(camera.position);
+      const solids = ray.intersectObjects(solidMeshes, false);
+      if(d <= CFG.castRange && !(solids.length && solids[0].distance < d-0.4)) aim = hitPt;
+    }
+    // Nothing under the reticle usually means the player is looking at
+    // the ground they are standing on. Put the column in front of them.
+    if(!aim){
+      const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      const spot = player.pos.clone().addScaledVector(f, CFG.drawReach);
+      spot.y = CFG.waterLevel;
+      if(overWater(spot.x, spot.z)) aim = spot;
+    }
+    live = !!aim && player.mana > 8;
+    if(mouseR && player.mana > 0 && !dlg.on){
+      if(!holding && aim){ holding = spawnColumn(aim.x, aim.z); AUDIO.sfx("draw"); tutCast++; }
+      if(holding){
+        holding.h = Math.min(CFG.columnMaxHeight, holding.h + CFG.columnGrowRate*dt);
+        holding.life = CFG.columnLife;
+        player.mana = Math.max(0, player.mana - CFG.drawCostPerSec*dt);
+        refreshColumn(holding);
+        if(player.mana <= 0) holding = null;
+      }
+    } else player.mana = Math.min(CFG.manaMax, player.mana + CFG.manaRegen*dt);
+  } else if(player.magic === "arc"){
+    ray.setFromCamera({x:0,y:0}, camera);
+    let aim=null, bd=Infinity;
+    for(const r of rods){
+      const dist = r.pos.distanceTo(player.pos);
+      if(dist > CFG.arcRange || dist < 2.0) continue;
+      const off = ray.ray.distanceToPoint(r.pos);
+      if(off < 3.0*CFG.aimAssist && off < bd){ aim=r; bd=off; }
+    }
+    if(!aim && isTouch){
+      const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      let bn=null, bs2=Infinity;
+      for(const r of rods){
+        const to = r.pos.clone().sub(player.pos);
+        const dist = to.length();
+        if(dist > CFG.arcRange || dist < 2.0) continue;
+        if(to.normalize().dot(f) < 0.5) continue;
+        if(dist < bs2){ bn=r; bs2=dist; }
+      }
+      aim = bn;
+    }
+    live = !!aim && player.mana >= CFG.arcCost;
+    if(mouseR && !castHeld && !dlg.on && aim && player.mana >= CFG.arcCost){
+      arcTo(aim);
+      player.mana -= CFG.arcCost;
+      AUDIO.sfx("arc"); tutCast++;
+    }
+    player.mana = Math.min(CFG.manaMax, player.mana + CFG.manaRegen*dt);
+    for(const r of rods){
+      if(r.charge > 0) r.charge = Math.max(0, r.charge - dt*1.6);
+      const k = 0.55 + Math.sin(clock*3 + r.pos.x)*0.15 + r.charge*0.9;
+      r.tip.material.color.setRGB(0.62+k*0.3, 0.48+k*0.25, 0.95);
+      r.tip.scale.setScalar(0.85 + r.charge*0.8);
+    }
+  } else if(player.magic === "grow"){
+    ray.setFromCamera({x:0,y:0}, camera);
+    let aim=null, bd=Infinity;
+    for(const b of buds){
+      const c = new THREE.Vector3(b.x, b.y, b.z);
+      const dist = c.distanceTo(camera.position);
+      if(dist > CFG.castRange) continue;
+      if(ray.ray.distanceToPoint(c) < 2.2*CFG.aimAssist && dist < bd){ aim=b; bd=dist; }
+    }
+    if(!aim && isTouch){
+      const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      let bn=null, bs2=Infinity;
+      for(const bu of buds){
+        const to = new THREE.Vector3(bu.x, bu.y, bu.z).sub(player.pos);
+        const dist = to.length();
+        if(dist > CFG.castRange) continue;
+        if(to.normalize().dot(f) < 0.45) continue;
+        if(dist < bs2){ bn=bu; bs2=dist; }
+      }
+      aim = bn;
+    }
+    live = !!aim && player.mana > 8;
+    if(mouseR && aim && player.mana > 0 && !dlg.on){
+      if(aim.len < 0.05){ AUDIO.sfx("grow"); tutCast++; }
+      aim.len = Math.min(aim.max, aim.len + CFG.growRate*dt);
+      aim.life = CFG.growLife;
+      player.mana = Math.max(0, player.mana - CFG.growCostPerSec*dt);
+      refreshVine(aim);
+    } else player.mana = Math.min(CFG.manaMax, player.mana + CFG.manaRegen*dt);
+
+    for(const b of buds){
+      if(b.life > 0){
+        b.life -= dt;
+        if(b.life <= 1.4){
+          b.len = Math.max(0, b.len - CFG.growRate*1.5*dt);
+          refreshVine(b);
+        }
+      }
+    }
+  } else if(player.magic === "forge"){
+    ray.setFromCamera({x:0,y:0}, camera);
+    let aim=null, bd=Infinity;
+    for(const f of forges){
+      const c = new THREE.Vector3(f.x, f.y + f.h, f.z);
+      const dist = c.distanceTo(camera.position);
+      if(dist > CFG.castRange) continue;
+      if(ray.ray.distanceToPoint(c) < 2.6*CFG.aimAssist && dist < bd){ aim=f; bd=dist; }
+    }
+    if(!aim && isTouch){
+      const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      let bn=null, bs2=Infinity;
+      for(const fo of forges){
+        const to = new THREE.Vector3(fo.x, fo.y+fo.h, fo.z).sub(player.pos);
+        const dist = to.length();
+        if(dist > CFG.castRange) continue;
+        if(to.normalize().dot(f) < 0.45) continue;
+        if(dist < bs2){ bn=fo; bs2=dist; }
+      }
+      aim = bn;
+    }
+    live = !!aim && player.mana > 8;
+    if(mouseR && aim && player.mana > 0 && !dlg.on){
+      if(aim.heat < 0.05){ AUDIO.sfx("forge"); tutCast++; }
+      aim.heat = Math.min(1, aim.heat + dt*2.2);
+      aim.h = Math.min(aim.max, aim.h + CFG.forgeRate*dt);
+      aim.cool = CFG.forgeCool;
+      player.mana = Math.max(0, player.mana - CFG.forgeCostPerSec*dt);
+      refreshForge(aim);
+      // glass only breaks once it has been brought up to heat
+      for(const e of enemies){
+        if(e.dead || !e.glass) continue;
+        if(e.pos.distanceTo(new THREE.Vector3(aim.x, aim.y+aim.h, aim.z)) < CFG.forgeHeatRadius){
+          e.hot = 3.0;
+        }
+      }
+    } else player.mana = Math.min(CFG.manaMax, player.mana + CFG.manaRegen*dt);
+
+    for(const f of forges){
+      if(f.cool > 0){
+        f.cool -= dt;
+        if(f.cool <= 0.9){
+          f.heat = Math.max(0, f.heat - dt*1.1);
+          f.h = Math.max(0.5, f.h - CFG.forgeRate*1.3*dt);
+          refreshForge(f);
+        }
+      }
+    }
+  } else {
+    // Still: find a moving target under the reticle
+    ray.setFromCamera({x:0,y:0}, camera);
+    let aim=null, bd=Infinity;
+    for(const d of drifters){
+      if(d.frozen > 0) continue;
+      const dist = d.g.position.distanceTo(camera.position);
+      if(dist > CFG.castRange) continue;
+      if(ray.ray.distanceToPoint(d.g.position) < d.r*2.2*CFG.aimAssist && dist < bd){ aim=d; bd=dist; }
+    }
+    // last resort on touch: the nearest drifter roughly ahead of you
+    if(!aim && isTouch){
+      const f = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      let bn=null, bs2=Infinity;
+      for(const d of drifters){
+        if(d.frozen > 0) continue;
+        const to = d.g.position.clone().sub(player.pos);
+        const dist = to.length();
+        if(dist > CFG.castRange) continue;
+        if(to.normalize().dot(f) < 0.45) continue;      // must be in front
+        if(dist < bs2){ bn=d; bs2=dist; }
+      }
+      aim = bn;
+    }
+    live = (!!aim || inBoss) && player.mana >= CFG.stillCost;
+    if(mouseR && !castHeld && !dlg.on && player.mana >= CFG.stillCost){
+      if(inBoss && stillProjectile()){ player.mana -= CFG.stillCost; AUDIO.sfx("still"); tutCast++; }
+      else if(aim && freezeDrifter(aim)){ player.mana -= CFG.stillCost; AUDIO.sfx("still"); tutCast++; }
+      else {
+        let w=null, wd=Infinity;
+        for(const e of enemies){
+          if(e.dead || e.frozen > 0) continue;
+          const c = e.pos.clone().setY(e.pos.y+0.9);
+          const dd = c.distanceTo(camera.position);
+          if(dd > CFG.castRange) continue;
+          if(ray.ray.distanceToPoint(c) < 1.5*CFG.aimAssist && dd < wd){ w=e; wd=dd; }
+        }
+        if(w){
+          w.frozen = 3.4; w.vel.set(0,0,0); w.heard = 0;
+          w.eye.material.color.setHex(0x8fb6d8);
+          ringBurst(w.pos.clone().setY(w.pos.y+0.9));
+          player.mana -= CFG.stillCost;
+          AUDIO.sfx("still");
+        }
+      }
+    }
+    player.mana = Math.min(CFG.manaMax, player.mana + CFG.manaRegen*dt);
+  }
+  castHeld = mouseR;
+  reticle.classList.toggle("live", live);
+
+  // Holding cast with nothing to cast at used to do nothing at all,
+  // which reads as a broken button. Say what is missing.
+  if(mouseR && !live && !dlg.on){
+    noTargetT += dt;
+    if(noTargetT > 0.45){
+      noTargetT = -2.2;
+      if(player.mana < 10) toast("Not enough charge yet. It refills on its own.", 1.8);
+      else toast(CAST_HINT[player.magic] || "Nothing to use it on here.", 2.2);
+    }
+  } else if(noTargetT > 0) noTargetT = 0;
+  else if(noTargetT < 0) noTargetT = Math.min(0, noTargetT + dt);
+
+  /* ---- columns age out ---- */
+  for(let i=columns.length-1;i>=0;i--){
+    const c = columns[i];
+    if(c !== holding){
+      c.life -= dt;
+      if(c.life < 1.2){ c.h = Math.max(0, c.h - CFG.columnGrowRate*1.4*dt); refreshColumn(c); }
+      if(c.life <= 0 || c.h <= 0.05){ killColumn(c); continue; }
+    }
+    c.shaft.material.opacity = 0.55 + Math.sin(clock*4+c.x)*0.08;
+  }
+
+  /* ---- drifters ---- */
+  for(const d of drifters){
+    if(d.frozen > 0){
+      d.frozen -= dt;
+      driftBox(d);
+      if(d.frozen <= 0) thawDrifter(d);
+    } else {
+      d.t += dt*d.speed;
+      d.g.position.set(
+        d.home.x + Math.sin(d.t)*d.amp.x,
+        d.home.y + Math.sin(d.t*1.15)*d.amp.y,
+        d.home.z + Math.sin(d.t*0.8)*d.amp.z);
+      d.g.rotation.y += dt*0.5*d.speed;
+      d.g.rotation.x += dt*0.3*d.speed;
+    }
+  }
+
+  /* ---- attack ---- */
+  player.attackCd -= dt;
+  player.attackT = Math.max(0, player.attackT - dt);
+  if(mouseL && player.attackCd <= 0 && !dlg.on){
+    player.attackCd = CFG.attackCooldown;
+    player.attackT = 0.28;
+    AUDIO.sfx("swing");
+    if(inBoss && !ended){
+      const sl = seals[phase];
+      if(sl && !sl.broken &&
+         sl.g.position.distanceTo(player.pos.clone().add(new THREE.Vector3(0,0.9,0)))
+           < CFG.attackRadius + 1.1){
+        sl.hp -= 1; ringBurst(sl.g.position.clone());
+        AUDIO.sfx("hitEnemy");
+        if(sl.hp <= 0) breakSeal(sl);
+      }
+    }
+    for(const e of enemies){
+      if(e.dead) continue;
+      if(e.pos.distanceTo(player.pos) < CFG.attackRadius){
+        if(e.glass && !(e.hot > 0)){
+          e.hurt = 0.2;
+          toast("Cold glass turns the blade. Bring it up to heat first.", 1.8);
+          AUDIO.sfx("deflect");
+          continue;
+        }
+        if(e.arcOnly){
+          e.hurt = 0.2;
+          toast("It never touches the ground. Arc into its rod.", 1.8);
+          AUDIO.sfx("deflect");
+          continue;
+        }
+        e.hp -= (e.frozen > 0 || e.hot > 0 ? 2 : 1); e.hurt = 0.3;
+        e.vel.add(e.pos.clone().sub(player.pos).setY(0).normalize().multiplyScalar(9));
+        AUDIO.sfx("hitEnemy");
+        if(e.hp <= 0){
+          e.dead = true; worldGroup.remove(e.g);
+          ringBurst(e.pos.clone().setY(e.pos.y+1));
+          player.mana = Math.min(CFG.manaMax, player.mana + 22);
+          AUDIO.sfx("kill");
+        }
+      }
+    }
+  }
+
+  /* ---- enemies ---- */
+  for(const e of enemies){
+    if(e.dead) continue;
+    e.t += dt;
+    e.hurt = Math.max(0, e.hurt - dt);
+    if(e.hot > 0) e.hot -= dt;
+    if(e.frozen > 0){
+      e.frozen -= dt;
+      if(e.frozen <= 0) e.eye.material.color.setHex(0xc4564a);
+      e.g.position.copy(e.pos);
+      continue;
+    }
+    const toP = player.pos.clone().sub(e.pos); toP.y = 0;
+    const dist = toP.length();
+
+    if(W.linger){
+      // rooted until you give them time. Then they come fast.
+      const rooted = linger < CFG.stillTooLong || dist > e.range*1.8;
+      e.wake += (rooted ? -dt*1.6 : dt*1.9);
+      e.wake = Math.max(0, Math.min(1, e.wake));
+      e.g.scale.setScalar(0.15 + e.wake*0.85);
+      if(e.wake > 0.55){
+        e.state = "hunt";
+        e.vel.add(toP.clone().normalize().multiplyScalar(23*dt));
+      } else { e.state = "patrol"; e.vel.multiplyScalar(0.2); }
+    } else if(W.sound){
+      // blind pack: they track what they can hear
+      const carry = noise / Math.max(1, dist*0.55);
+      if(carry > 0.65){ e.heard = 2.6; e.lastHeard.copy(player.pos); }
+      else e.heard = Math.max(0, e.heard - dt);
+      if(e.heard > 0 && dist < e.range*2.4){
+        e.state = "hunt";
+        const to = e.lastHeard.clone().sub(e.pos); to.y = 0;
+        if(to.length() > 0.4) e.vel.add(to.normalize().multiplyScalar(26*dt));
+      } else e.state = "patrol";
+    } else {
+      e.state = dist < e.range*1.7 ? "hunt" : "patrol";
+      if(e.state === "hunt") e.vel.add(toP.clone().normalize().multiplyScalar(21*dt));
+    }
+    if(e.state === "patrol" && !W.linger){
+      const drift = new THREE.Vector3(
+        Math.sin(e.t*0.45)*e.range, 0, Math.cos(e.t*0.34)*e.range
+      ).add(e.home).sub(e.pos);
+      drift.y = 0;
+      if(drift.length() > 0.4) e.vel.add(drift.normalize().multiplyScalar(6.5*dt));
+    }
+    e.vel.multiplyScalar(Math.max(0, 1-4.2*dt));
+    e.vel.clampLength(0, e.state==="hunt" ? (W.sound?8.2:6.4) : 2.4);
+    e.pos.add(e.vel.clone().multiplyScalar(dt));
+
+    if(e.kind === "rook"){
+      const near = dist < e.range*1.8;
+      e.vel.multiplyScalar(Math.max(0, 1-3*dt));
+      const orbit = new THREE.Vector3(
+        e.home.x + Math.cos(e.t*0.8)*(near?2.2:3.4), 0,
+        e.home.z + Math.sin(e.t*0.8)*(near?2.2:3.4)).sub(e.pos);
+      orbit.y = 0;
+      e.vel.add(orbit.multiplyScalar(2.4*dt));
+      e.pos.add(e.vel.clone().multiplyScalar(dt));
+      e.pos.y += ((e.fly + Math.sin(e.t*1.6)*0.5) - e.pos.y) * Math.min(1, 4*dt);
+      e.g.position.copy(e.pos);
+      if(dist > 0.01) e.g.rotation.y = Math.atan2(toP.x, toP.z);
+      const flap = Math.sin(e.t*9)*0.7;
+      e.legs[0].rotation.z = flap; e.legs[1].rotation.z = -flap;
+      e.eye.material.color.setHex(e.hurt>0 ? 0xffffff : 0xc9a6ff);
+      if(!dlg.on && dist < 1.4) hurt(1);
+      continue;
+    }
+    let floor = CFG.waterLevel - (W.swim ? 0.55 : 0);
+    for(const b of colliders){
+      if(e.pos.x > b.min.x-0.5 && e.pos.x < b.max.x+0.5 &&
+         e.pos.z > b.min.z-0.5 && e.pos.z < b.max.z+0.5 &&
+         b.max.y <= e.pos.y+1.8 && b.max.y > floor) floor = b.max.y;
+    }
+    e.pos.y += (floor - e.pos.y) * Math.min(1, 9*dt);
+    e.g.position.copy(e.pos);
+    e.g.position.y += e.kind==="knight" ? Math.sin(e.t*3)*0.06 : 0;
+    if(dist > 0.01) e.g.rotation.y = Math.atan2(toP.x, toP.z);
+    if(e.legs.length){
+      const gait = e.state==="hunt" ? 11 : 4;
+      for(let i=0;i<e.legs.length;i++)
+        e.legs[i].rotation.x = Math.sin(e.t*gait + i*Math.PI*0.5)*(e.state==="hunt"?0.7:0.28);
+    }
+    e.eye.material.color.setHex(e.hurt>0 ? 0xffffff
+      : (e.hot>0 ? 0xffc25e : (e.state==="hunt"? 0xff7a52 : 0xc4564a)));
+    if(e.glass && e.body) e.body.userData.fill.material.color.setHex(e.hot>0 ? 0xff8a3a : 0x8fd2c8);
+    if(!dlg.on && dist < 1.25 && Math.abs(player.pos.y - e.pos.y) < 2 &&
+       !(W.linger && e.wake < 0.55)) hurt(1);
+  }
+
+  /* ---- records ---- */
+  for(const m of marks){
+    if(m.taken) continue;
+    m.mesh.rotation.y += dt*1.6;
+    m.mesh.rotation.x += dt*0.7;
+    m.mesh.position.y = m.base + Math.sin(clock*2+m.base)*0.14;
+    if(m.mesh.position.distanceTo(player.pos.clone().setY(player.pos.y+0.9)) < 1.5){
+      m.taken = true; worldGroup.remove(m.mesh); collected++;
+      ringBurst(m.mesh.position.clone());
+      const rec = W.lore[m.idx];
+      carve(rec[0], rec[1]);
+      AUDIO.sfx("pickup");
+      if(collected === 10 && gateMesh){
+        gateMesh.material = gateMesh.material.clone();
+        gateMesh.material.emissive = new THREE.Color(W.accent);
+        AUDIO.sfx("gate");
+        setTimeout(()=>{ if(!dlg.on) say("", W.allRead); }, 7000);
+      }
+    }
+  }
+
+  /* ---- gate ---- */
+  if(!inBoss && collected >= 10 &&
+     player.pos.distanceTo(new THREE.Vector3().fromArray(W.gate)) < 4.6) enterBoss();
+  bossTick(dt);
+
+  if(clearing > 0){
+    clearing = Math.min(1, clearing + dt*0.22);
+    const k = clearing;
+    weather.material.opacity = W.particle.opacity*(1-k*(W.id==="stormcrown" ? 1 : 0.85));
+    scene.fog.density = W.fogDensity*1.3 - W.fogDensity*1.0*k;
+    scene.background.lerpColors(new THREE.Color(W.fogColor), new THREE.Color(W.boss.clearSky), k);
+    sun.intensity = W.sunI + 0.5*k;
+  }
+
+  /* ---- Kite ---- */
+  player.invuln = Math.max(0, player.invuln - dt);
+  rig.position.copy(player.pos);
+  const speed = Math.hypot(player.vel.x, player.vel.z);
+  if(speed > 0.6) rig.rotation.y = Math.atan2(player.vel.x, player.vel.z);
+  player.bob += speed*dt*2.1;
+  const airborne = !player.grounded && !player.inWater;
+  const swing = airborne ? 0.34 : Math.sin(player.bob*3.2)*0.62;
+
+  legL.rotation.x = swing; legR.rotation.x = -swing;
+  armL.rotation.x = -swing*0.85;
+  armR.rotation.x = player.attackT > 0 ? -2.4 : swing*0.85;
+  armL.rotation.z = -0.26; armR.rotation.z = 0.26;
+  torso.rotation.x = Math.min(0.30, speed*0.021) + (airborne ? 0.14 : 0);
+  torso.rotation.z = Math.sin(player.bob*3.2)*0.05;
+  hips.rotation.y = Math.sin(player.bob*3.2)*0.12;
+
+  const pin = Math.min(0.55, speed*0.045);
+  earL.rotation.x = -0.14 - pin + Math.sin(clock*1.7)*0.05*(1-pin);
+  earR.rotation.x = -0.14 - pin + Math.sin(clock*1.9+1)*0.05*(1-pin);
+
+  for(let i=0;i<panels.length;i++){
+    const flap = Math.sin(player.bob*3.2 + i*Math.PI)*0.16;
+    const trail = Math.min(0.55, speed*0.042) + (airborne ? 0.34 : 0);
+    panels[i][0].rotation.x = trail + flap;
+    panels[i][1].rotation.x = trail*0.55 + Math.sin(player.bob*3.2 + i*Math.PI - 0.6)*0.13;
+  }
+  const lag = -player.vel.x*0.012;
+  for(let i=0;i<tail.length;i++){
+    const t = i/tail.length;
+    tail[i].rotation.y = Math.sin(clock*3.1 - i*0.62)*(0.10+t*0.16) + lag;
+    tail[i].rotation.x = 0.14 + Math.sin(clock*2.4 - i*0.5)*0.07 - (airborne?0.16:0);
+  }
+  const fill = player.mana/CFG.manaMax;
+  core.scale.setScalar(0.35 + fill*0.75);
+  core.material.opacity = 0.35 + fill*0.6;
+  coreGlow.intensity = 0.10 + fill*0.55;
+  spark.material.opacity = live ? 0.9 : 0.15;
+  spark.scale.setScalar(live ? 1 : 0.5);
+  rig.visible = !(player.invuln > 0 && Math.floor(clock*14)%2===0);
+  lamp.position.set(player.pos.x, player.pos.y+1.9, player.pos.z);
+
+  /* ---- camera ---- */
+  // Drift in behind the direction of travel once the player stops steering.
+  // This is what makes a thumbstick playable: most of the time you never
+  // have to rotate the camera yourself at all.
+  lookIdle += dt;
+  if(autoFollow && !dlg.on && lookIdle > CFG.followDelay){
+    const spd = Math.hypot(player.vel.x, player.vel.z);
+    if(spd > CFG.followMinSpeed){
+      const want = Math.atan2(-player.vel.x, -player.vel.z);
+      const ease = Math.min(1, (spd - CFG.followMinSpeed) / 6);
+      player.yaw += angleTo(player.yaw, want) * Math.min(1, CFG.followRate * ease * dt);
+    }
+  }
+
+  const head3 = player.pos.clone().add(new THREE.Vector3(0, CFG.camHeight, 0));
+  const dir = new THREE.Vector3(
+    Math.sin(player.yaw)*Math.cos(player.pitch),
+    -Math.sin(player.pitch),
+    Math.cos(player.yaw)*Math.cos(player.pitch));
+  let cdist = CFG.camDist;
+  ray.set(head3, dir.clone().normalize());
+  const hits = ray.intersectObjects(solidMeshes, false);
+  if(hits.length && hits[0].distance < cdist) cdist = Math.max(1.6, hits[0].distance - 0.35);
+  camPos.lerp(head3.clone().add(dir.normalize().multiplyScalar(cdist)), Math.min(1, CFG.camLerp*dt));
+  camera.position.copy(camPos);
+  camera.lookAt(head3);
+  camera.fov += ((62 + Math.min(speed,13)*0.55) - camera.fov) * Math.min(1, 4*dt);
+  camera.updateProjectionMatrix();
+
+  sun.position.set(player.pos.x-38, player.pos.y+46, player.pos.z+26);
+  sun.target.position.copy(player.pos); sun.target.updateMatrixWorld();
+
+  /* ---- story ---- */
+  dlgStep(dt);
+  if(carveT > 0){ carveT -= dt; if(carveT <= 0) carveEl.classList.remove("on"); }
+  if(NPC){
+    const nowIn = NPC.pos.distanceTo(player.pos) < NPC.radius && !dlg.on;
+    if(nowIn !== inRange){
+      inRange = nowIn;
+      if(isTouch) talkBtn.style.display = inRange ? "block" : "none";
+      else if(inRange) toast("Press E to speak with " + W.npc.name, 3);
+    }
+    if(npcGroup){
+      const want = Math.atan2(player.pos.x-NPC.pos.x, player.pos.z-NPC.pos.z);
+      npcGroup.rotation.y += (want - npcGroup.rotation.y) * Math.min(1, 2.5*dt);
+    }
+  }
+
+  // Adaptive resolution. A phone that drops below ~40fps gets
+  // pixels back until it recovers; it never climbs past its cap.
+  fpsAccum += dt; fpsFrames++;
+  if(fpsAccum >= 1){
+    const fps = fpsFrames / fpsAccum;
+    fpsAccum = 0; fpsFrames = 0;
+    const cap = COARSE ? 1.20 : 1.75;
+    if(fps < 40 && quality > 0.62){
+      quality = Math.max(0.62, quality - 0.18);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, quality));
+    } else if(fps > 56 && quality < cap){
+      quality = Math.min(cap, quality + 0.08);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, quality));
+    }
+  }
+
+  guideTick(dt);
+  AUDIO.tick();
+  fadeBarriers();
+  updateRings(dt);
+  if(toastT > 0){ toastT -= dt; if(toastT <= 0) toastEl.classList.remove("on"); }
+  paintHUD();
+  renderer.render(scene, camera);
+}
+
+/* ==========================================================
+   19. BOOT
+   ========================================================== */
+let hidden = false;
+function fitViewport(){
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  checkOrientation();
+}
+addEventListener("resize", fitViewport);
+// iOS fires orientationchange before the new size is readable
+addEventListener("orientationchange", ()=> setTimeout(fitViewport, 250));
+
+// A backgrounded tab should not run physics or hold the audio graph open.
+document.addEventListener("visibilitychange", ()=>{
+  hidden = document.hidden;
+  if(hidden){
+    AUDIO.suspend();
+    mouseL = false; mouseR = false; creepTouch = false;
+    touch.on = false; touch.mx = 0; touch.mz = 0;
+    touch.stickId = null; touch.lookId = null;
+    for(const k in keys) keys[k] = false;
+  }
+  else { AUDIO.resume(); last = performance.now(); }
+});
+
+const rotateEl = document.getElementById("rotate");
+function checkOrientation(){
+  if(!COARSE || !rotateEl) return;
+  // portrait is playable, it is just cramped; suggest once, never block
+  const portrait = innerHeight > innerWidth * 1.35;
+  if(portrait && running && !portraitWarned){
+    portraitWarned = true;
+    toast("Turn your phone sideways for a wider view", 3.5);
+  }
+}
+let portraitWarned = false;
+renderer.domElement.addEventListener("click", ()=>{
+  if(running && !locked && renderer.domElement.requestPointerLock)
+    renderer.domElement.requestPointerLock();
+});
+buildPicker();
+requestAnimationFrame(tick);
+
+if(typeof window !== "undefined"){
+  window.__game = {WORLDS, loadWorld, startWorld, enterBoss, breakSeal, seals:()=>seals,
+                   player, PROGRESS, dlg, dlgAdvance, swapMagic, MAGIC,
+                   colliders:()=>colliders, drifters:()=>drifters, enemies:()=>enemies,
+                   forges:()=>forges, refreshForge, buds:()=>buds, refreshVine,
+                   linger:()=>linger, setLinger:v=>{linger=v;},
+                   rods:()=>rods, arcTo, AUDIO, barriers:()=>barriers,
+                   worldGroup:()=>worldGroup, INK_MAT:INK, shellCache,
+                   renderer, camera, quality:()=>quality,
+                   objective, openHelp, closeHelp, isHelpOpen:()=>helpOpen,
+                   overWater, columns:()=>columns,
+                   recenter, angleTo, setAutoFollow:v=>{autoFollow=v;},
+                   autoFollow:()=>autoFollow, lookIdle:()=>lookIdle,
+                   tutStep:()=>tutStep, TUTORIAL,
+                   freezeDrifter, projs:()=>projs, W:()=>W, CFG};
+}
+}
+
+/* ==========================================================
+   LOADER — three mirrors, and every failure shows its face
+   ========================================================== */
+var MIRRORS = [
+  "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
+  "https://unpkg.com/three@0.128.0/build/three.min.js"
+];
+var crashed = false;
+function fail(msg){
+  if(crashed) return;
+  crashed = true;
+  var t=document.getElementById("title"), l=document.getElementById("loader");
+  if(t) t.classList.add("hidden");
+  if(l) l.classList.add("hidden");
+  document.getElementById("crashMsg").textContent = msg;
+  document.getElementById("crash").classList.remove("hidden");
+}
+function safeBoot(){
+  try { bootGame(); }
+  catch(err){ fail((err && err.message ? err.message : String(err))); }
+}
+function loadThree(i){
+  if(window.THREE){ safeBoot(); return; }
+  if(i >= MIRRORS.length){
+    fail("The 3D library did not load from any mirror. If you opened this file straight off disk, try serving it instead, or check whether an extension is blocking scripts.");
+    return;
+  }
+  var s = document.createElement("script");
+  s.crossOrigin = "anonymous";
+  s.src = MIRRORS[i];
+  s.onload  = function(){ window.THREE ? safeBoot() : loadThree(i+1); };
+  s.onerror = function(){ loadThree(i+1); };
+  document.head.appendChild(s);
+}
+window.addEventListener("error", function(e){
+  fail(e.message + (e.lineno ? "  (line "+e.lineno+":"+e.colno+")" : ""));
+});
+document.getElementById("crashCopy").addEventListener("click", function(){
+  var txt = document.getElementById("crashMsg").textContent;
+  if(navigator.clipboard) navigator.clipboard.writeText(txt);
+  this.textContent = "Copied";
+});
+loadThree(0);
+</script>
+</body>
+</html>
