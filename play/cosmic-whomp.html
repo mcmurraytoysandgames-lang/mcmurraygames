@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>COSMIC WHOMP — Galactic Bounty Hunter</title>
-<!-- Offline build: no external scripts. -->
+<!-- CrazyGames SDK v3. Loads before the game; absence is handled gracefully. -->
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js" onerror="window.__cgMissing=1"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0620;touch-action:none;overscroll-behavior:none;
@@ -280,7 +281,50 @@ body.talking #touch{opacity:.12;pointer-events:none}
 /* =========================================================================
    COSMIC WHOMP — core: canvas, math, input, audio
    ========================================================================= */
-const cv=document.getElementById('cv'); let ctx=cv.getContext('2d');
+const cv=document.getElementById('cv');
+let ctx=cv.getContext('2d',{alpha:false,desynchronized:true});
+
+/* -------------------------------------------------------------------------
+   PERF — measures real frame cost and scales quality to fit the device.
+   tier 2 desktop / 1 mid phone / 0 weak phone. Everything expensive reads
+   from here rather than guessing from the user agent.
+   ------------------------------------------------------------------------- */
+const PERF={
+  tier:2, dprCap:2, parts:420, trail:true, shadow:true, stars:220, doods:90, pad:true,
+  acc:0, n:0, cool:0, locked:false,
+  init(){
+    const nav=window.navigator||{};
+    const cores=nav.hardwareConcurrency||4, mem=nav.deviceMemory||4;
+    const coarse=window.matchMedia&&window.matchMedia('(pointer:coarse)').matches;
+    const small=Math.min(window.innerWidth,window.innerHeight)<820;
+    let t=2;
+    if(coarse||small) t=1;                       // any touch device starts mid
+    if(cores<=4||mem<=3) t=Math.min(t,1);
+    if(cores<=2||mem<=2) t=0;
+    this.set(t);
+  },
+  set(t){
+    this.tier=Math.max(0,Math.min(2,t));
+    this.dprCap=[1,1.5,2][this.tier];
+    this.parts =[110,220,420][this.tier];
+    this.trail =[false,true,true][this.tier];
+    this.shadow=[false,false,true][this.tier];
+    this.stars =[70,130,220][this.tier];
+    this.doods =[40,64,90][this.tier];
+    this.pad   =this.tier>0;
+    if(typeof resize==='function') resize();
+  },
+  /* Watch the frame budget. Two seconds of bad frames drops a tier, once. */
+  frame(dt){
+    if(this.locked) return;
+    this.acc+=dt; this.n++;
+    if(this.acc<2) return;
+    const fps=this.n/this.acc; this.acc=0; this.n=0;
+    if(this.cool>0){ this.cool--; return; }
+    if(fps<42&&this.tier>0){ this.set(this.tier-1); this.cool=2;
+      if(this.tier===0) this.locked=true; }
+  }
+};
 if(!CanvasRenderingContext2D.prototype.roundRect){
   CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
     r=Math.min(r||0,Math.abs(w)/2,Math.abs(h)/2);
@@ -289,12 +333,23 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
 }
 let W=0,H=0,DPR=1;
 function resize(){
-  DPR=Math.min(2,window.devicePixelRatio||1);
-  W=window.innerWidth; H=window.innerHeight;
-  cv.width=Math.floor(W*DPR); cv.height=Math.floor(H*DPR);
+  DPR=Math.min(PERF.dprCap,window.devicePixelRatio||1);
+  const vv=window.visualViewport;
+  W=Math.round(vv?vv.width:window.innerWidth);
+  H=Math.round(vv?vv.height:window.innerHeight);
+  const bw=Math.floor(W*DPR), bh=Math.floor(H*DPR);
+  if(cv.width!==bw||cv.height!==bh){ cv.width=bw; cv.height=bh; }
   ctx.setTransform(DPR,0,0,DPR,0,0);
 }
-window.addEventListener('resize',resize); resize();
+/* Mobile browsers fire resize continuously while the URL bar slides. Reallocating
+   the backing store on each event is what makes that stutter, so coalesce them
+   into at most one resize per frame. */
+let _rsz=0;
+function queueResize(){ if(_rsz) return; _rsz=requestAnimationFrame(()=>{ _rsz=0; resize(); }); }
+window.addEventListener('resize',queueResize);
+window.addEventListener('orientationchange',queueResize);
+if(window.visualViewport) window.visualViewport.addEventListener('resize',queueResize);
+PERF.init(); resize();
 
 const TAU=Math.PI*2, rnd=(a,b)=>a+Math.random()*(b-a), rint=(a,b)=>Math.floor(rnd(a,b+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
@@ -441,7 +496,7 @@ const MUS={
     const md=t.melody[s32];
     if(md!==null&&md!==undefined) this.lead(when,degNote(t.root,t.scale,md)+12,spb*(t.glide?4.2:1.9),t.lead,t.glide);
     /* pad on the downbeat */
-    if(t.pad&&s16===0) this.pad(when,degNote(t.root,t.scale,0),spb*15);
+    if(t.pad&&PERF.pad&&s16===0) this.pad(when,degNote(t.root,t.scale,0),spb*15);
     /* drums */
     if(t.kick.includes(s16)) this.kick(when);
     if(t.snare.includes(s16)) this.snare(when);
@@ -875,6 +930,11 @@ const A={p:null,enemies:[],bullets:[],ebullets:[],parts:[],drops:[],pets:[],dood
   fireCd:0,done:false,spawnCd:0,killed:0,goal:0,tint:'#1d3a1f',ground:'#3f6b34',prop:'goo',flash:0};
 let EID=1;
 function shake(v){ A.shake=Math.min(26,A.shake+v); }
+/* Only ~6% of a planet arena fits on a phone screen, so everything tests
+   against the camera window before spending draw calls. */
+let VX0=0,VY0=0,VX1=0,VY1=0;
+function viewBounds(pad){ VX0=A.cam.x-pad; VY0=A.cam.y-pad; VX1=A.cam.x+W+pad; VY1=A.cam.y+H+pad; }
+function inView(x,y){ return x>=VX0&&x<=VX1&&y>=VY0&&y<=VY1; }
 
 function shoot(from,ang,spd,dmg,r,color,kind,opt={}){
   const b={x:from.x+Math.cos(ang)*(from.r||16),y:from.y+Math.sin(ang)*(from.r||16),
@@ -885,14 +945,23 @@ function eshoot(from,ang,spd,dmg,r,color,kind='eshot',opt={}){
   A.ebullets.push(Object.assign({x:from.x,y:from.y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
     r,dmg,color,kind,life:opt.life||3.4,rot:0},opt));
 }
+/* Cosmetic randomness runs on its own stream. If particles drew from the shared
+   one, a phone that spawns fewer of them would desync the whole simulation and
+   get different enemy placements than a desktop. */
+let _vs=987654321;
+const vrnd=(a,b)=>{ _vs=(_vs*1664525+1013904223)&0x7fffffff; return a+(_vs/0x7fffffff)*(b-a); };
 function puff(x,y,n,c,spd=170,size=5,life=.5){
-  for(let i=0;i<n;i++){ if(A.parts.length>420) return;
-    const a=rnd(0,TAU),s=rnd(spd*.25,spd);
-    A.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(life*.5,life),max:life,c,r:rnd(size*.5,size)}); }
+  if(PERF.tier===0) n=Math.ceil(n*.45); else if(PERF.tier===1) n=Math.ceil(n*.75);
+  for(let i=0;i<n;i++){ if(A.parts.length>PERF.parts) return;
+    const a=vrnd(0,TAU),s=vrnd(spd*.25,spd);
+    A.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:vrnd(life*.5,life),max:life,c,r:vrnd(size*.5,size)}); }
 }
 function floatText(x,y,txt,c,size=15){
-  if(A.parts.length>440) return;
-  A.parts.push({x,y,vx:rnd(-24,24),vy:-70,life:.85,max:.85,c,txt,size});
+  /* strokeText+fillText is the most expensive thing we draw, so on weak
+     devices only the big callouts survive. */
+  if(A.parts.length>PERF.parts) return;
+  if(PERF.tier===0&&size<16) return;
+  A.parts.push({x,y,vx:vrnd(-24,24),vy:-70,life:.85,max:.85,c,txt,size});
 }
 const POWS=['POW!','SPLAT!','BONK!','YEET!','KABLAM!','SQUISH!','ZORP!','WHOMP!','OOF!','SPLORT!','BLAMMO!','THWACK!'];
 
@@ -907,7 +976,8 @@ function startArena(planet){
   A.usedRevive=false; A.hitTaken=false; A.combo=[]; A.resolved=false;
   G.paused=false; UI.modal=null; validateLoadout();
   A.doodads.length=0;
-  for(let i=0;i<90;i++) A.doodads.push({x:rnd(40,A.w-40),y:rnd(40,A.h-40),s:rnd(.6,1.9),h:rnd(0,1),c:Math.random()<.5?planet.c1:planet.c2});
+  for(let i=0;i<PERF.doods;i++) A.doodads.push({x:vrnd(40,A.w-40),y:vrnd(40,A.h-40),
+    s:vrnd(.6,1.9),h:vrnd(0,1),c:vrnd(0,1)<.5?planet.c1:planet.c2});
   G.planet=planet; G.scene='arena';
   CG.gameplayStart(); CG.context({planet:planet.name,difficulty:DF().name,wave:1});
   MUS.play('ground',planet.id);
@@ -919,7 +989,8 @@ function startSpace(target){
   A.w=2600; A.h=2000; A.done=false; A.killed=0; A.goal=5+Math.min(8,target.tier*2); A.hitTaken=false;
   A.p={x:A.w/2,y:A.h/2,r:24,face:0,walk:0};
   A.doodads.length=0;
-  for(let i=0;i<160;i++) A.doodads.push({x:rnd(0,A.w),y:rnd(0,A.h),s:rnd(.4,2.2),h:rnd(0,1),c:'#ffffff'});
+  for(let i=0;i<PERF.stars;i++) A.doodads.push({x:vrnd(0,A.w),y:vrnd(0,A.h),
+    s:vrnd(.4,2.2),h:vrnd(0,1),c:'#ffffff'});
   G.ship.hp=G.ship.maxhp; A.spawnCd=0; G.scene='space';
   A.resolved=false; G.paused=false; UI.modal=null; validateLoadout();
   CG.gameplayStart(); CG.context({leg:'space route',destination:target.name,difficulty:DF().name});
@@ -1042,7 +1113,7 @@ function updateArena(dt){
   /* player */
   const mv=moveVec();
   let spd = space? G.ship.speed : 260;
-  if(G.dashT>0){ spd*=2.7; G.dashT-=dt; if(A.parts.length<380)
+  if(G.dashT>0){ spd*=2.7; G.dashT-=dt; if(PERF.trail&&A.parts.length<PERF.parts)
     A.parts.push({x:p.x,y:p.y,vx:0,vy:0,life:.28,max:.28,c:'#8ef0ff',r:14}); }
   G.dashCd=Math.max(0,G.dashCd-dt);
   if((IN.dashReq||IN.codes.ShiftLeft||IN.codes.ShiftRight)&&G.dashCd<=0&&(mv.m>.15)){ G.dashT=.18; G.dashCd=1.1*(1-.3*pk('boots')); AU.blip(300,.14,'sine',.1,600); }
@@ -1292,7 +1363,7 @@ function updateEnemyAI(e,dt){
       if(e.state===0){ step(Math.cos(a)*e.spd*.55,Math.sin(a)*e.spd*.55);
         e.cd-=dt; if(d<340&&e.cd<=0){ e.state=1; e.ca=a; e.ct=.75; AU.blip(180,.2,'sawtooth',.08,300); } }
       else { e.ct-=dt; step(Math.cos(e.ca)*e.spd*3.4,Math.sin(e.ca)*e.spd*3.4);
-        if(A.parts.length<380) A.parts.push({x:e.x,y:e.y,vx:0,vy:0,life:.24,max:.24,c:e.def.c1,r:6});
+        if(A.parts.length<PERF.parts) A.parts.push({x:e.x,y:e.y,vx:0,vy:0,life:.24,max:.24,c:e.def.c1,r:6});
         if(e.ct<=0){ e.state=0; e.cd=1.5; } }
       break; }
     case 'blink': {
@@ -1379,7 +1450,7 @@ function updateBoss(b,dt){
     case 'charge': {
       if(b.sub===0){ b.ca=a; b.sub=1; AU.blip(140,.3,'sawtooth',.12,340); }
       if(b.atkT<1.1){ b.x+=Math.cos(b.ca)*520*dt; b.y+=Math.sin(b.ca)*520*dt;
-        if(A.parts.length<380) A.parts.push({x:b.x,y:b.y,vx:0,vy:0,life:.3,max:.3,c:b.def.c1,r:14});
+        if(A.parts.length<PERF.parts) A.parts.push({x:b.x,y:b.y,vx:0,vy:0,life:.3,max:.3,c:b.def.c1,r:14});
         if(b.x<b.r+20||b.x>A.w-b.r-20) b.ca=Math.PI-b.ca;
         if(b.y<b.r+20||b.y>A.h-b.r-20) b.ca=-b.ca;
       } else { b.atk=null; shake(8); AU.thump(); }
@@ -1496,7 +1567,7 @@ function drawEnemy(e){
   const d=e.def, s=d.shape||'blob', hop=e.hop||0, x=e.x, y=e.y-hop, r=e.r;
   ctx.save();
   if(e.spawn>0) ctx.globalAlpha=.4;
-  if(e.flash>0){ ctx.shadowColor='#fff'; ctx.shadowBlur=18; }
+  if(e.flash>0&&PERF.shadow){ ctx.shadowColor='#fff'; ctx.shadowBlur=18; }
   const c1=e.flash>.4?'#ffffff':d.c1, c2=d.c2, look=e.face||0;
   switch(s){
     case 'bat':
@@ -1746,23 +1817,27 @@ function drawArena(){
   const sx=A.shake?rnd(-A.shake,A.shake):0, sy=A.shake?rnd(-A.shake,A.shake):0;
   ctx.setTransform(DPR,0,0,DPR,0,0);
   ctx.fillStyle=A.mode==='space'?'#07051c':A.tint; ctx.fillRect(0,0,W,H);
+  viewBounds(140);
   ctx.save(); ctx.translate(-A.cam.x+sx,-A.cam.y+sy);
 
   if(A.mode==='space'){
-    for(const d of A.doodads){ ctx.globalAlpha=.25+d.h*.7;
-      ctx.fillStyle='#fff'; ctx.fillRect(d.x,d.y,d.s,d.s); }
+    for(const d of A.doodads){ if(!inView(d.x,d.y)) continue;
+      ctx.globalAlpha=.25+d.h*.7; ctx.fillStyle='#fff'; ctx.fillRect(d.x,d.y,d.s,d.s); }
     ctx.globalAlpha=.16;
     const g=ctx.createRadialGradient(A.w*.35,A.h*.4,40,A.w*.35,A.h*.4,A.w*.6);
     g.addColorStop(0,'#ff2fa0'); g.addColorStop(1,'#07051c00'); ctx.fillStyle=g;
     ctx.fillRect(0,0,A.w,A.h); ctx.globalAlpha=1;
   } else {
-    ctx.fillStyle=A.ground; ctx.fillRect(0,0,A.w,A.h);
+    const gx0=Math.max(0,VX0), gy0=Math.max(0,VY0), gx1=Math.min(A.w,VX1), gy1=Math.min(A.h,VY1);
+    ctx.fillStyle=A.ground; ctx.fillRect(gx0,gy0,gx1-gx0,gy1-gy0);
     ctx.globalAlpha=.14; ctx.strokeStyle='#000'; ctx.lineWidth=2;
-    for(let x=0;x<A.w;x+=90){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,A.h); ctx.stroke(); }
-    for(let y=0;y<A.h;y+=90){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(A.w,y); ctx.stroke(); }
+    ctx.beginPath();                              // one path for all grid lines
+    for(let x=Math.ceil(gx0/90)*90;x<gx1;x+=90){ ctx.moveTo(x,gy0); ctx.lineTo(x,gy1); }
+    for(let y=Math.ceil(gy0/90)*90;y<gy1;y+=90){ ctx.moveTo(gx0,y); ctx.lineTo(gx1,y); }
+    ctx.stroke();
     ctx.globalAlpha=1;
     for(const d of A.doodads){
-      if(d.x<A.cam.x-120||d.x>A.cam.x+W+120||d.y<A.cam.y-140||d.y>A.cam.y+H+140) continue;
+      if(!inView(d.x,d.y)) continue;
       ctx.save(); ctx.translate(d.x,d.y); ctx.scale(d.s,d.s);
       switch(A.prop){
         case 'goo': ctx.beginPath(); ctx.ellipse(0,0,26,14,0,0,TAU); inked(d.c,3);
@@ -1783,6 +1858,7 @@ function drawArena(){
 
   /* drops */
   for(const d of A.drops){
+    if(!inView(d.x,d.y)) continue;
     const bob=Math.sin(d.t*6)*3;
     ctx.save(); ctx.translate(d.x,d.y+bob);
     if(d.kind==='coin'){ ctx.rotate(Math.sin(d.t*4)*.5);
@@ -1796,15 +1872,17 @@ function drawArena(){
   }
   /* pets */
   for(const g of A.pets){
+    if(!inView(g.x,g.y)) continue;
     ctx.save(); ctx.translate(g.x,g.y+Math.sin(g.wob)*4);
     blobPath(0,0,g.r,g.wob,.18); inked('#c86bff',4);
     eyes(0,0,g.r,3,0,.75);
     ctx.restore();
   }
-  for(const e of A.enemies) if(!e.boss) drawEnemy(e);
-  if(A.boss) drawEnemy(A.boss);
-  for(const b of A.bullets) drawBullet(b);
+  for(const e of A.enemies) if(!e.boss&&inView(e.x,e.y)) drawEnemy(e);
+  if(A.boss&&inView(A.boss.x,A.boss.y)) drawEnemy(A.boss);
+  for(const b of A.bullets) if(inView(b.x,b.y)) drawBullet(b);
   for(const b of A.ebullets){
+    if(!inView(b.x,b.y)) continue;
     ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.rot);
     ctx.beginPath(); ctx.moveTo(0,-b.r*1.2); ctx.lineTo(b.r,0); ctx.lineTo(0,b.r*1.2); ctx.lineTo(-b.r,0); ctx.closePath();
     inked(b.color,3); ctx.restore();
@@ -1813,6 +1891,7 @@ function drawArena(){
   /* particles */
   ctx.textAlign='center'; ctx.textBaseline='middle';
   for(const q of A.parts){
+    if(!inView(q.x,q.y)) continue;
     const k=q.life/q.max;
     ctx.globalAlpha=Math.max(0,k);
     if(q.txt){ ctx.font='900 '+(q.size||14)+'px Impact,"Arial Black",sans-serif';
@@ -2277,9 +2356,9 @@ const Landing={
     circ(0,-4,6); inked('#8ef0ff',2);
     ctx.restore();
     /* dust on the way down */
-    if(k>.55&&A.parts.length<160&&Math.random()<.7){
-      A.parts.push({x:W/2+rnd(-70,70),y:hy+rnd(-6,20),vx:rnd(-150,150),vy:rnd(-70,10),
-        life:.6,max:.6,c:p.c1,r:rnd(4,11)});
+    if(k>.55&&A.parts.length<Math.min(160,PERF.parts)&&Math.random()<.7){
+      A.parts.push({x:W/2+vrnd(-70,70),y:hy+vrnd(-6,20),vx:vrnd(-150,150),vy:vrnd(-70,10),
+        life:.6,max:.6,c:p.c1,r:vrnd(4,11)});
     }
     for(const q of A.parts){ const k2=Math.max(0,q.life/q.max);
       ctx.globalAlpha=k2; circ(q.x,q.y,q.r*k2); ctx.fillStyle=q.c; ctx.fill(); }
@@ -2334,7 +2413,7 @@ const UI={
   talkQueue:[], talking:false, current:null, talkLock:0, modal:null, gate:0,
   hold(ms=280){ this.gate=performance.now()+ms; },      // absorb mashed input across a transition
   busy(){ return performance.now()<this.gate; },
-  chips:[], chipKey:'',
+  chips:[], chipKey:'', dockSig:'',
   bars(){
     const space=G.scene==='space';
     const hp=space?G.ship.hp:G.hp, mx=space?G.ship.maxhp:G.maxhp;
@@ -2350,7 +2429,7 @@ const UI={
     if(G.scene!=='arena'){ if(this.chips.length){ d.innerHTML=''; this.chips=[]; this.chipKey=''; } return; }
     const key=G.weapons.join(',');
     if(key!==this.chipKey){
-      this.chipKey=key; d.innerHTML=''; this.chips=[];
+      this.chipKey=key; this.dockSig=''; d.innerHTML=''; this.chips=[];
       G.weapons.forEach((id,i)=>{
         const w=WDEF[id];
         const el=document.createElement('div'); el.className='wchip';
@@ -2362,6 +2441,10 @@ const UI={
         this.chips.push({el,id,am:el.querySelector('.am'),lv:el.querySelector('.lv'),xp:el.querySelector('.xpline i')});
       });
     }
+    let sig=G.wsel+'|';
+    for(const c of this.chips){ const st=wstate(c.id); sig+=st.ammo+','+st.lvl+','+Math.round(st.xp)+';'; }
+    if(sig===this.dockSig) return;              // nothing changed: skip the DOM entirely
+    this.dockSig=sig;
     this.chips.forEach((c,i)=>{
       const s=wstate(c.id);
       c.el.classList.toggle('sel',i===G.wsel);
@@ -2880,7 +2963,7 @@ SAVE.init(); CG.init();
 let last=performance.now();
 function frame(t){
   const dt=Math.min(.048,(t-last)/1000); last=t;
-  SAVE.tick(dt);
+  PERF.frame(dt); SAVE.tick(dt);
   if(G.scene==='landing'){ if(!UI.talking) Landing.update(dt); Landing.draw(); }
   else if(G.scene==='starmap'){ Starmap.update(dt); Starmap.draw(); }
   else if(G.scene==='arena'||G.scene==='space'){
