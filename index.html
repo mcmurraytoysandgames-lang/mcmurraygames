@@ -128,6 +128,7 @@ section{padding-block:clamp(2.5rem,6vw,4.5rem);}
   box-shadow:0 10px 22px rgba(0,0,0,.4),0 1px 0 rgba(255,255,255,.35) inset;
   transition:transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s ease;
   will-change:transform;
+  overflow:hidden;
 }
 /* each card lies on the table at its own angle */
 .deal .card:nth-child(4n+1){transform:rotate(-1.6deg);}
@@ -137,6 +138,18 @@ section{padding-block:clamp(2.5rem,6vw,4.5rem);}
 .deal .card:hover,.deal .card:focus-visible{
   transform:rotate(0deg) translateY(-10px);
   box-shadow:0 20px 38px rgba(0,0,0,.5);
+}
+
+/* ---- the art window ---- */
+.card .art{
+  display:block;
+  width:calc(100% + 2.5rem);
+  height:auto;
+  margin:-1.25rem -1.25rem 1rem;
+  aspect-ratio:1/1;
+  object-fit:cover;
+  border-radius:9px 9px 0 0;
+  background:#0d1512;
 }
 
 .stock{
@@ -213,8 +226,6 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
 </div>
 
 <div class="wrap hero">
-
-<div class="wrap hero">
   <p class="eyebrow">St. Louis, Missouri</p>
   <h1>Games you can <em>hold</em>. Games you can play <em>right now</em>.</h1>
   <p>A one-person studio making print-and-play board games, card games, and browser games. Nothing to install. Nothing to sign up for.</p>
@@ -225,7 +236,7 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
 </div>
 
 <!-- ============ BROWSER GAMES ============
-     Drop each build in /play/<slug>/index.html and point the href there. -->
+     Builds live in /play/. Cover art lives in /art/. -->
 <section id="play">
   <div class="wrap">
     <div class="head">
@@ -236,20 +247,23 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
     <div class="deal">
 
       <a class="card" href="/play/LuxTheMoth.html">
-        <div class="stock"><span>Arcade</span><span>Offline edition</span></div>
+        <img class="art" src="/art/lux.jpg" alt="" width="600" height="600">
+        <div class="stock"><span>Arcade</span><span>1 player</span></div>
         <h3>Lux the Moth</h3>
         <p>Chase the light through a chalk-drawn night. One HTML file, no ads, runs with the wifi off.</p>
         <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
       </a>
 
-     <a class="card" href="/play/snowdown.html">
+      <a class="card" href="/play/snowdown.html">
+        <img class="art" src="/art/snowdown.jpg" alt="" width="600" height="600">
         <div class="stock"><span>Racing</span><span>1 player</span></div>
         <h3>Snowdown Sled Racers</h3>
         <p>Eight hills, five neighborhood kids, one snow day. Scoop snowballs off the slope and throw them at whoever is ahead of you.</p>
         <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
       </a>
 
-    <a class="card" href="/play/leviathan-hour.html">
+      <a class="card" href="/play/leviathan-hour.html">
+        <img class="art" src="/art/leviathan-hour.jpg" alt="" width="600" height="600" loading="lazy">
         <div class="stock"><span>Survival horror</span><span>1 player</span></div>
         <h3>Leviathan Hour</h3>
         <p>The animal came up through the harbor at 0210. They hunt sound, glass carries, and a ring of light on the street means a foot is coming down there.</p>
@@ -257,13 +271,15 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
       </a>
 
       <a class="card" href="/play/cosmic-whomp.html">
+        <img class="art" src="/art/cosmic-whomp.jpg" alt="" width="600" height="600" loading="lazy">
         <div class="stock"><span>Action</span><span>1 player</span></div>
         <h3>Cosmic Whomp</h3>
         <p>Six planets, six villains, eleven increasingly stupid guns. Take the bounty, survive the trip, clear the surface, spend everything at Sprocket Station.</p>
         <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
       </a>
 
-     <a class="card" href="/play/afterlife-repo.html">
+      <a class="card" href="/play/afterlife-repo.html">
+        <img class="art" src="/art/afterlife-repo.jpg" alt="" width="600" height="600" loading="lazy">
         <div class="stock"><span>Platformer</span><span>1 player</span></div>
         <h3>Afterlife Repo</h3>
         <p>Six estates in default. Every owner is dead, none of them moved out, and everything you pick up changes how you move. The walk in is easy. The walk out is hard.</p>
@@ -271,19 +287,17 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
       </a>
 
       <a class="card" href="/play/thiefofweather.html">
-  <div class="stock"><span>Adventure</span><span>1 player</span></div>
-  <h3>Thief of Weather</h3>
-  <p>Five worlds, five weathers, five guardians holding on for reasons that stopped making sense generations ago. Everything you steal, you keep, and it opens doors in the places you already left. Nobody up there is going to stop you.</p>
-  <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
-</a>
+        <div class="stock"><span>Adventure</span><span>1 player</span></div>
+        <h3>Thief of Weather</h3>
+        <p>Five worlds, five weathers, five guardians holding on for reasons that stopped making sense generations ago. Everything you steal, you keep, and it opens doors in the places you already left. Nobody up there is going to stop you.</p>
+        <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
+      </a>
 
     </div>
   </div>
 </section>
 
-<!-- ============ TABLETOP ============
-     Physical copies: link to The Game Crafter.
-     Print-and-play PDFs: link to your Payhip product URL. -->
+<!-- ============ TABLETOP ============ -->
 <section id="tabletop">
   <div class="wrap">
     <div class="head">
@@ -294,14 +308,15 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
     <div class="deal">
 
       <a class="card" href="https://www.kickstarter.com/projects/joshuamcmurray/corpse-road-a-co-op-deduction-game-with-the-senses-taken">
+        <img class="art" src="/art/corpse-road.jpg" alt="" width="600" height="600" loading="lazy">
         <div class="stock"><span>Co-op deduction</span><span>2&ndash;5 bearers</span></div>
         <h3>Corpse Road</h3>
         <p>Carry the coffin down the lych way. Read the omens, name the five-slot Path, and relay what you know past the walls of what each bearer can no longer see, say, or hear.</p>
         <div class="meta"><span class="price">On Kickstarter</span><span class="cue">Back it</span></div>
       </a>
 
-     <a class="card" href="/games/mycelium.html">
-        <img class="art" src="/art/mycelium.jpg" alt="" loading="lazy">
+      <a class="card" href="/games/mycelium.html">
+        <img class="art" src="/art/mycelium.jpg" alt="" width="600" height="600" loading="lazy">
         <div class="stock"><span>Euro</span><span>2&ndash;4 players</span></div>
         <h3>Mycelium</h3>
         <p>From rot, an empire. Thread hyphae through the dark, break the dead into nutrients, and bargain with the trees before the last season turns.</p>
