@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Snowdown Sled Racers &mdash; McMurray Games</title>
 <style>
   :root{
+    --tbtn:76px;  /* touch button diameter */
+    --tgap:12px;  /* space between buttons in a cluster */
+    --tedge:14px; /* space from the screen edge */
     --ink:#131c2c;
     --frost:#eaf3fb;
     --steel:#5b7794;
@@ -137,7 +140,11 @@
 
   /* ---------- hud ---------- */
   #hud{position:absolute;inset:0;z-index:20;pointer-events:none;font-weight:bold}
-  .hrow{position:absolute;left:0;right:0;display:flex;gap:8px;padding:0 14px}
+  .hrow{
+    position:absolute;left:0;right:0;display:flex;gap:8px;
+    padding-left:calc(14px + env(safe-area-inset-left,0px));
+    padding-right:calc(14px + env(safe-area-inset-right,0px));
+  }
   .hrow.top{top:12px;align-items:flex-start}
   .hrow.bot{bottom:14px;align-items:flex-end}
   .pill{
@@ -156,7 +163,9 @@
   #speedo .bar{height:5px;background:#26374f;border-radius:3px;margin-top:6px;overflow:hidden}
   #speedo .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6fd3ff,var(--mitten))}
   #track{
-    position:absolute;left:14px;right:14px;top:64px;height:6px;
+    position:absolute;top:64px;height:6px;
+    left:calc(14px + env(safe-area-inset-left,0px));
+    right:calc(14px + env(safe-area-inset-right,0px));
     background:rgba(12,20,34,.55);border-radius:4px;
   }
   #track b{position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%)}
@@ -187,7 +196,7 @@
   /* Sits under the speedo, so the speed you lost reads right beside the speed
      you have left, and the middle of the screen stays clear for the hill. */
   #penalty{
-    position:absolute;right:14px;top:80px;
+    position:absolute;right:calc(14px + env(safe-area-inset-right,0px));top:80px;
     z-index:22;pointer-events:none;text-align:right;
     background:rgba(158,38,30,.92);border:1px solid rgba(255,214,208,.55);
     border-radius:9px;padding:7px 11px;
@@ -220,20 +229,67 @@
     text-align:center;
   }
 
-  /* ---------- touch ---------- */
-  #touch{position:absolute;inset:0;z-index:25;display:none}
-  #touch button.down{background:rgba(242,168,59,.45)}
-  #touch button{
-    position:absolute;bottom:18px;width:74px;height:74px;border-radius:50%;
-    background:rgba(234,243,251,.16);border:2px solid rgba(234,243,251,.3);
-    color:#fffdf4;font-size:22px;font-weight:900;font-family:inherit;
+  /* ---------- touch ----------
+     One size variable drives the whole pad, so the layout can shrink on short
+     landscape screens (Safari's toolbars eat a lot of height) without any of the
+     buttons drifting into each other. Left thumb steers, right thumb does
+     everything else, and the middle of the screen stays clear. */
+  /* inset by the notch so no control lands under the Dynamic Island in landscape */
+  #touch{
+    position:absolute;top:0;bottom:0;z-index:25;display:none;
+    left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);
   }
-  #touch button:active{background:rgba(242,168,59,.5)}
-  #tl{left:16px} #tr{left:100px} #tt{right:100px;font-size:12px;letter-spacing:.1em;text-indent:.1em}
-  #tb{right:16px;font-size:12px;letter-spacing:.1em;text-indent:.1em}
-  #td{right:58px;bottom:100px;width:58px;height:58px;font-size:11px;letter-spacing:.08em;text-indent:.08em}
   body.touch #touch{display:block}
+  #touch button{
+    position:absolute;
+    width:var(--tbtn);height:var(--tbtn);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(234,243,251,.17);border:2px solid rgba(234,243,251,.34);
+    color:#fffdf4;font-weight:900;font-family:inherit;
+    font-size:calc(var(--tbtn) * .30);line-height:1;
+    padding:0;
+  }
+  #touch button.lbl{
+    font-size:calc(var(--tbtn) * .17);letter-spacing:.06em;text-indent:.06em;
+  }
+  #touch button:active,#touch button.down{background:rgba(242,168,59,.5)}
+  /* left thumb */
+  #tl{left:var(--tedge);bottom:var(--tedge)}
+  #tr{left:calc(var(--tedge) + var(--tbtn) + var(--tgap));bottom:var(--tedge)}
+  /* right thumb: TUCK in the corner where it is easiest to hold */
+  #tt{right:var(--tedge);bottom:var(--tedge)}
+  #tb{right:calc(var(--tedge) + var(--tbtn) + var(--tgap));bottom:var(--tedge)}
+  #td{
+    right:var(--tedge);
+    bottom:calc(var(--tedge) + var(--tbtn) + var(--tgap));
+    width:var(--tbtn);height:calc(var(--tbtn) * .58);
+    border-radius:calc(var(--tbtn) * .29);
+  }
+
+  /* Keep the readouts out of both thumb zones instead of underneath them. */
+  body.touch .hrow.bot{
+    padding-left:calc(var(--tedge)*2 + var(--tbtn)*2 + var(--tgap) + 12px + env(safe-area-inset-left,0px));
+    padding-right:calc(var(--tedge)*2 + var(--tbtn)*2 + var(--tgap) + 12px + env(safe-area-inset-right,0px));
+  }
+  body.touch #hHill{display:none}          /* it shares the corner with PAUSE/SOUND */
+  body.touch #coach{bottom:calc(var(--tedge) + var(--tbtn)*1.75)}
+
   @media (max-width:620px){ #chatter{top:82px} }
+  /* short landscape: shrink the pad and the readouts together */
+  @media (max-height:430px){
+    :root{--tbtn:62px;--tgap:10px;--tedge:11px}
+    .pill .val{font-size:16px}
+    #speedo{min-width:92px;padding:6px 10px}
+    #speedo .num{font-size:21px}
+    #ammo i{width:11px;height:11px}
+    #penalty{top:70px}
+  }
+  @media (max-height:350px){
+    :root{--tbtn:52px;--tgap:8px;--tedge:8px}
+    .pill .lbl{display:none}
+    #track{top:56px}
+    #penalty{top:60px}
+  }
   @media (prefers-reduced-motion:reduce){ .btn:active{transform:none} }
   /* ---------- cup banner ---------- */
   .cupbar{
@@ -276,7 +332,7 @@
   .ctrl .what{color:#cfe2f2}
   .ctrl .what i{display:block;color:#8fb3d1;font-style:normal;font-size:12px;margin-top:1px}
   #pauseBtn{
-    position:absolute;top:10px;right:96px;z-index:40;display:none;
+    position:absolute;top:10px;right:calc(96px + env(safe-area-inset-right,0px));z-index:40;display:none;
     background:rgba(10,17,29,.55);color:#cfe2f2;
     border:1px solid rgba(207,226,242,.4);border-radius:6px;
     font:bold 10px/1 "Trebuchet MS",sans-serif;letter-spacing:.16em;text-indent:.16em;
@@ -356,7 +412,7 @@
 
   /* ---------- sound toggle ---------- */
   #snd{
-    position:absolute;top:10px;right:12px;z-index:40;
+    position:absolute;top:10px;right:calc(12px + env(safe-area-inset-right,0px));z-index:40;
     background:rgba(10,17,29,.55);color:#cfe2f2;
     border:1px solid rgba(207,226,242,.4);border-radius:6px;
     font:bold 10px/1 "Trebuchet MS",sans-serif;letter-spacing:.16em;text-indent:.16em;
@@ -394,9 +450,9 @@
   <div id="touch">
     <button id="tl" aria-label="Steer left">◀</button>
     <button id="tr" aria-label="Steer right">▶</button>
-    <button id="tt" aria-label="Tuck">TUCK</button>
-    <button id="tb" aria-label="Throw snowball">THROW</button>
-    <button id="td" aria-label="Drag your boots">BOOTS</button>
+    <button id="tt" class="lbl" aria-label="Tuck">TUCK</button>
+    <button id="tb" class="lbl" aria-label="Throw snowball">THROW</button>
+    <button id="td" class="lbl" aria-label="Drag your boots">BOOTS</button>
   </div>
 
   <noscript>
@@ -406,7 +462,7 @@
          That usually means this file was opened from Downloads or Files rather than in a browser.</p>
       <p><b>Open it in Safari or Chrome instead</b> &mdash; or better, play it at the link on the website
          rather than saving the file.</p>
-      <small>Snowdown Sled Racers &middot; McMurray Games &middot; build 2026.08.01</small>
+      <small>Snowdown Sled Racers &middot; McMurray Games &middot; build 2026.08.02</small>
     </div>
   </noscript>
 
@@ -469,7 +525,7 @@
       <span class="wallet" id="mWallet">0 points</span>
     </div>
     <p class="madeby"><b>McMurray Games</b> &middot; built from a notebook idea, one snow day at a time
-      &middot; mcmurraygames.com &middot; <span class="build">build 2026.08.01</span></p>
+      &middot; mcmurraygames.com &middot; <span class="build">build 2026.08.02</span></p>
   </div>
 
   <div id="garage" class="screen hidden">
