@@ -3,257 +3,734 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mycelium &mdash; McMurray Games</title>
-<meta name="description" content="Mycelium: a heavy Euro about fungal colonies competing beneath the forest floor. 2 to 4 players, 90 to 130 minutes, age 14+.">
-
-<meta property="og:title" content="Mycelium &mdash; McMurray Games">
-<meta property="og:description" content="From rot, an empire. A heavy Euro about fungal colonies competing beneath the forest floor.">
-<meta property="og:type" content="product">
-<meta property="og:url" content="https://mcmurraygames.com/games/mycelium.html">
-<meta property="og:image" content="https://mcmurraygames.com/art/mycelium-large.jpg">
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Karla:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-
+<title>Mycelium — Playtest</title>
 <style>
-:root{
-  --felt-deep:#123B29;
-  --felt-mid:#1A5238;
-  --rail:#40281A;
-  --rail-hi:#5C3B27;
-  --stock:#F1E8D5;
-  --ink:#17130E;
-  --brass:#C79A3E;
-
-  --display:"Bricolage Grotesque",system-ui,sans-serif;
-  --body:"Karla",system-ui,sans-serif;
-  --util:"Space Mono",ui-monospace,monospace;
-}
-
-*{box-sizing:border-box;}
-html{scroll-behavior:smooth;}
-
-body{
-  margin:0;
-  font-family:var(--body);
-  color:var(--stock);
-  background-color:var(--felt-deep);
-  background-image:
-    radial-gradient(ellipse at 50% 0%, var(--felt-mid) 0%, var(--felt-deep) 62%),
-    repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(-45deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px);
-  background-attachment:fixed;
-  line-height:1.55;
-  -webkit-font-smoothing:antialiased;
-}
-
-.wrap{width:min(1080px,92vw);margin-inline:auto;}
-
-/* ---- table rail ---- */
-.rail{
-  background:linear-gradient(180deg,var(--rail-hi),var(--rail));
-  border-bottom:2px solid var(--brass);
-  box-shadow:0 6px 24px rgba(0,0,0,.45);
-  position:sticky;top:0;z-index:20;
-}
-.rail .wrap{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:1rem;padding:.85rem 0;flex-wrap:wrap;
-}
-.wordmark{
-  font-family:var(--display);font-weight:800;font-size:1.15rem;
-  letter-spacing:.14em;text-transform:uppercase;color:var(--stock);
-  text-decoration:none;
-}
-.rail nav{display:flex;gap:1.4rem;}
-.rail nav a{
-  font-family:var(--util);font-size:.72rem;letter-spacing:.12em;
-  text-transform:uppercase;color:#E4D6B8;text-decoration:none;
-  padding-bottom:2px;border-bottom:1px solid transparent;
-}
-.rail nav a:hover,.rail nav a:focus-visible{border-bottom-color:var(--brass);color:#fff;}
-
-/* ---- breadcrumb ---- */
-.crumb{
-  font-family:var(--util);font-size:.7rem;letter-spacing:.14em;
-  text-transform:uppercase;color:#9DAE9F;padding-top:1.8rem;
-}
-.crumb a{color:var(--brass);text-decoration:none;}
-.crumb a:hover,.crumb a:focus-visible{text-decoration:underline;}
-
-/* ---- product layout ---- */
-.product{
-  display:grid;
-  grid-template-columns:minmax(280px,1fr) minmax(300px,1.05fr);
-  gap:clamp(2rem,5vw,3.6rem);
-  align-items:start;
-  padding:clamp(1.6rem,4vw,2.8rem) 0 clamp(2.5rem,6vw,4rem);
-}
-@media (max-width:760px){ .product{grid-template-columns:1fr;} }
-
-/* box shots */
-.shots{display:flex;flex-direction:column;gap:1.1rem;}
-.shot{
-  display:block;width:100%;border-radius:10px;
-  box-shadow:0 16px 34px rgba(0,0,0,.5);
-  background:#0d1512;
-}
-.shot.back{opacity:.94;}
-.shotlabel{
-  font-family:var(--util);font-size:.62rem;letter-spacing:.18em;
-  text-transform:uppercase;color:#9DAE9F;margin:.15rem 0 0;
-}
-
-/* copy column */
-.eyebrow{
-  font-family:var(--util);font-size:.7rem;letter-spacing:.22em;
-  text-transform:uppercase;color:var(--brass);margin:0 0 .9rem;
-}
-h1{
-  font-family:var(--display);font-weight:800;
-  font-size:clamp(2.2rem,5.5vw,3.4rem);line-height:1.03;
-  letter-spacing:-.02em;margin:0 0 .5rem;
-}
-.tagline{
-  font-family:var(--display);font-weight:600;
-  font-size:clamp(1.05rem,2.2vw,1.3rem);
-  color:var(--brass);margin:0 0 1.6rem;
-}
-.product p{color:#DCD2BC;margin:0 0 1.1rem;}
-
-.specs{
-  display:flex;flex-wrap:wrap;gap:.5rem .9rem;
-  font-family:var(--util);font-size:.72rem;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--stock);
-  border-block:1px solid rgba(199,154,62,.3);
-  padding:.85rem 0;margin:1.6rem 0;
-}
-.specs span:not(:last-child)::after{content:" \00b7";color:var(--brass);margin-left:.9rem;}
-
-.bullets{list-style:none;padding:0;margin:0 0 1.8rem;}
-.bullets li{
-  position:relative;padding-left:1.5rem;margin-bottom:.6rem;
-  color:#DCD2BC;font-size:.97rem;
-}
-.bullets li::before{
-  content:"";position:absolute;left:0;top:.62em;
-  width:8px;height:8px;border-radius:50%;
-  background:var(--brass);
-}
-
-.contents{
-  font-family:var(--util);font-size:.76rem;line-height:1.9;
-  color:#C6BCA6;letter-spacing:.04em;
-}
-.contents strong{
-  display:block;color:var(--brass);font-size:.66rem;
-  letter-spacing:.18em;text-transform:uppercase;margin-bottom:.4rem;
-}
-
-/* ---- status panel ---- */
-.status{
-  border:1px solid var(--brass);border-radius:5px;
-  background:rgba(199,154,62,.09);
-  padding:1.3rem 1.4rem;margin-top:2rem;
-}
-.status .flag{
-  font-family:var(--util);font-size:.66rem;font-weight:700;
-  letter-spacing:.22em;text-transform:uppercase;color:var(--brass);
-  display:block;margin-bottom:.5rem;
-}
-.status h2{
-  font-family:var(--display);font-weight:600;font-size:1.25rem;
-  margin:0 0 .5rem;color:var(--stock);
-}
-.status p{font-size:.92rem;color:#D5CBB5;margin:0 0 1rem;}
-.status p:last-child{margin-bottom:0;}
-.status a{color:var(--brass);}
-
-footer{padding:2.6rem 0 3.4rem;border-top:1px solid rgba(199,154,62,.25);}
-footer .wrap{display:flex;justify-content:space-between;gap:1.2rem;flex-wrap:wrap;align-items:center;}
-footer p{font-family:var(--util);font-size:.7rem;letter-spacing:.1em;color:#9DAE9F;margin:0;text-transform:uppercase;}
-footer nav{display:flex;gap:1.3rem;}
-footer nav a{font-family:var(--util);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#C6BCA6;text-decoration:none;}
-footer nav a:hover,footer nav a:focus-visible{color:var(--brass);}
-
-a:focus-visible{outline:2px solid var(--brass);outline-offset:4px;}
-@media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto;} *{transition:none !important;} }
+  :root{
+    --bg:#05070b; --panel:#0b0f15; --panel2:#10161e; --line:#1c2530;
+    --ink:#dbe6ec; --dim:#7f97a2; --cyan:#3de0e0; --mag:#e85ad0; --grn:#8be04a;
+    --amb:#f0ca78; --white:#e6faf9;
+    --p0:#ea4b4b; --p1:#4b8cea; --p2:#a65be0; --p3:#e8912f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Segoe UI',system-ui,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  h1,h2,h3{margin:0;font-weight:800;letter-spacing:.5px}
+  button{font-family:inherit;cursor:pointer}
+  .wrap{display:flex;flex-direction:column;min-height:100vh}
+  header{display:flex;align-items:center;gap:16px;padding:10px 18px;
+    border-bottom:1px solid var(--line);background:linear-gradient(180deg,#080b10,#05070b)}
+  header .brand{font-size:24px;font-weight:800;color:var(--white);
+    text-shadow:0 0 14px rgba(61,224,224,.5)}
+  header .brand small{color:var(--cyan);font-size:12px;font-weight:600;letter-spacing:2px;display:block}
+  .season-pill{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .chip{padding:5px 12px;border-radius:20px;border:1px solid var(--line);
+    background:#0c1119;font-size:13px}
+  .chip b{color:var(--cyan)}
+  main{display:grid;grid-template-columns:260px 1fr 300px;gap:0;flex:1;min-height:0}
+  .col{padding:14px;overflow:auto}
+  .col.left{border-right:1px solid var(--line)}
+  .col.right{border-left:1px solid var(--line)}
+  .board-col{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:10px;background:radial-gradient(1200px 700px at 50% 40%,#0a0f16,#05070b)}
+  svg{max-width:100%;max-height:78vh}
+  .panelbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px;margin-bottom:12px}
+  .panelbox h3{font-size:13px;color:var(--cyan);letter-spacing:1.5px;margin-bottom:8px;text-transform:uppercase}
+  .res{display:flex;gap:8px;flex-wrap:wrap}
+  .res .r{display:flex;align-items:center;gap:6px;background:#0c1219;border:1px solid var(--line);
+    border-radius:8px;padding:5px 9px;font-size:15px;font-weight:700}
+  .dot{width:13px;height:13px;border-radius:50%;display:inline-block}
+  .btn{display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;border-radius:9px;
+    border:1px solid var(--line);background:#0e141c;color:var(--ink);font-size:14px;font-weight:600;
+    transition:.12s}
+  .btn small{display:block;color:var(--dim);font-weight:500;font-size:11px;margin-top:2px}
+  .btn:hover:not(:disabled){border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan) inset}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn.active{border-color:var(--cyan);box-shadow:0 0 14px rgba(61,224,224,.35);background:#0f1a22}
+  .btn.pass{border-color:#7a2f2f}
+  .btn.meta{border-color:#2f5a5a}
+  .mkt{display:flex;flex-direction:column;gap:6px}
+  .card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#0d131b;font-size:12.5px}
+  .card b{color:var(--ink);font-size:13.5px}
+  .card .cost{float:right;color:var(--amb);font-weight:700}
+  .card.buy{cursor:pointer}
+  .card.buy:hover{border-color:var(--cyan)}
+  .seasons{display:flex;flex-direction:column;gap:5px}
+  .srow{display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);
+    border-radius:8px;background:#0c1119;font-size:12px;opacity:.55}
+  .srow.cur{opacity:1;border-color:var(--cyan);box-shadow:0 0 10px rgba(61,224,224,.25)}
+  .srow.done{opacity:.3}
+  .srow .n{font-weight:800;color:var(--cyan);width:26px}
+  .srow small{color:var(--dim);display:block}
+  .players{display:flex;gap:10px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);
+    background:#080b10}
+  .pcard{border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:150px;background:#0c1119}
+  .pcard.turn{box-shadow:0 0 0 2px currentColor inset}
+  .pcard .nm{font-weight:800;display:flex;align-items:center;gap:7px}
+  .pcard .sc{font-size:12px;color:var(--dim);margin-top:3px}
+  #log{height:120px;overflow:auto;font-size:12px;line-height:1.5;color:var(--dim);
+    border-top:1px solid var(--line);padding:8px 14px;background:#070a0e}
+  #log b{color:var(--ink)}
+  .prompt{padding:10px 14px;background:#0b141a;border-top:1px solid var(--line);
+    color:var(--cyan);font-weight:600;font-size:14px;min-height:20px}
+  .overlay{position:fixed;inset:0;background:rgba(4,6,10,.94);display:flex;
+    align-items:center;justify-content:center;z-index:20}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px 34px;
+    max-width:560px;width:90%;text-align:center;box-shadow:0 0 60px rgba(61,224,224,.15)}
+  .modal h1{font-size:40px;color:var(--white);text-shadow:0 0 22px rgba(61,224,224,.5)}
+  .modal .tag{color:var(--cyan);letter-spacing:2px;margin:6px 0 22px;font-size:13px}
+  .seg{display:flex;gap:8px;justify-content:center;margin:10px 0 18px;flex-wrap:wrap}
+  .seg button{padding:9px 16px;border-radius:9px;border:1px solid var(--line);background:#0e141c;
+    color:var(--ink);font-weight:700}
+  .seg button.on{border-color:var(--cyan);background:#0f1a22;box-shadow:0 0 12px rgba(61,224,224,.3)}
+  .go{margin-top:12px;padding:12px 30px;border-radius:10px;border:1px solid var(--cyan);
+    background:#0f1a22;color:var(--white);font-weight:800;font-size:16px;letter-spacing:1px}
+  .final{text-align:left;margin:14px 0}
+  .final .fr{display:flex;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--line)}
+  .final .fr.win{color:var(--white);font-weight:800}
+  hextag{}
+  .hx{cursor:default;transition:.1s}
+  .hx.tgt{cursor:pointer}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 2px var(--cyan))}50%{filter:drop-shadow(0 0 9px var(--cyan))}}
+  .tgt polygon{animation:pulse 1.1s infinite}
+  .legend{font-size:11px;color:var(--dim);line-height:1.7}
+  .legend .dot{margin-right:5px;vertical-align:middle}
+  a.link{color:var(--cyan);cursor:pointer;text-decoration:underline}
 </style>
 </head>
 <body>
+<div class="wrap">
+  <header>
+    <div class="brand">MYCELIUM<small>FROM ROT, AN EMPIRE — PLAYTEST</small></div>
+    <div class="season-pill">
+      <span class="chip">Year <b id="yr">1</b></span>
+      <span class="chip">Season <b id="sn">1/8</b></span>
+      <span class="chip" id="seasonName">—</span>
+      <span class="chip">Phase <b id="phase">—</b></span>
+    </div>
+  </header>
 
-<header class="rail">
-  <div class="wrap">
-    <a class="wordmark" href="/">McMurray Games</a>
-    <nav>
-      <a href="/#play">Play</a>
-      <a href="/#tabletop">Tabletop</a>
-      <a href="/#studio">Studio</a>
-    </nav>
-  </div>
-</header>
-
-<div class="wrap crumb">
-  <a href="/#tabletop">&larr; On the table</a>
-</div>
-
-<div class="wrap product">
-
-  <div class="shots">
-    <img class="shot" src="/art/mycelium-large.jpg" width="900" height="900"
-         alt="Mycelium box front: a pale fungal network spreading across a dark forest floor.">
-    <img class="shot back" src="/art/mycelium-back-large.jpg" width="900" height="900" loading="lazy"
-         alt="Mycelium box back, listing the components and how the game plays.">
-    <p class="shotlabel">Box front and back</p>
-  </div>
-
-  <div>
-    <p class="eyebrow">Heavy Euro &middot; Hex tile placement</p>
-    <h1>Mycelium</h1>
-    <p class="tagline">From rot, an empire.</p>
-
-    <p>Beneath the forest floor, a silent empire spreads. You are a fungal colony. Thread your hyphae through the dark, break the dead into nutrients, and strike bargains with the trees above.</p>
-
-    <p>Reach too far and a hard winter starves your edges. Grow too slow and rivals seize the richest ground. Across two years, decompose, fruit, and rule the groves before the last season turns.</p>
-
-    <div class="specs">
-      <span>2&ndash;4 players</span>
-      <span>90&ndash;130 min</span>
-      <span>Age 14+</span>
+  <main>
+    <div class="col left">
+      <div class="panelbox">
+        <h3>Season track</h3>
+        <div class="seasons" id="seasonTrack"></div>
+      </div>
+      <div class="panelbox">
+        <h3>Legend</h3>
+        <div class="legend">
+          <span class="dot" style="background:var(--grn)"></span>Litter / Deadwood — Carbon<br>
+          <span class="dot" style="background:var(--mag)"></span>Humus — Nitrogen<br>
+          <span class="dot" style="background:var(--cyan)"></span>Mineral — Phosphorus<br>
+          <span class="dot" style="background:var(--amb)"></span>Tree (root node)<br>
+          <span class="dot" style="background:#6b7280"></span>Stone / Depleted<br>
+          <br><a class="link" id="helpLink">How to play ▸</a>
+        </div>
+      </div>
     </div>
 
-    <ul class="bullets">
-      <li>A living board that decays as you play</li>
-      <li>Bargain with trees, poison rivals, evolve to survive</li>
-      <li>A different forest every game, and winter always comes</li>
-    </ul>
-
-    <p class="contents">
-      <strong>In the box</strong>
-      ~40 substrate tiles &middot; 88 hyphae &middot; 24 fruiting bodies<br>
-      44 cards &middot; nutrient tokens &middot; season deck
-    </p>
-
-    <div class="status">
-      <span class="flag">Coming soon</span>
-      <h2>Not available yet</h2>
-      <p>Mycelium is finished and heading to print. It isn't for sale at the moment while I sort out production and shipping.</p>
-      <p>Want to know the day it goes up? Email <a href="mailto:contact@mcmurraygames.com?subject=Mycelium">contact@mcmurraygames.com</a> and I'll write to you when it's ready.</p>
+    <div class="board-col">
+      <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
-  </div>
 
+    <div class="col right">
+      <div class="panelbox" id="turnPanel">
+        <h3 id="turnTitle">—</h3>
+        <div class="res" id="resRow"></div>
+      </div>
+      <div class="panelbox">
+        <h3>Actions</h3>
+        <div id="actions"></div>
+      </div>
+      <div class="panelbox">
+        <h3>Adaptation market</h3>
+        <div class="mkt" id="market"></div>
+      </div>
+      <div class="panelbox">
+        <h3>Your trees &amp; traits</h3>
+        <div id="ownStuff" style="font-size:12px;color:var(--dim)"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="prompt" id="prompt">Set up a game to begin.</div>
+  <div class="players" id="players"></div>
+  <div id="log"></div>
 </div>
 
-<footer>
-  <div class="wrap">
-    <p>&copy; 2026 McMurray Games</p>
-    <nav>
-      <a href="/">Home</a>
-      <a href="mailto:contact@mcmurraygames.com">Email</a>
-    </nav>
+<div class="overlay" id="setup">
+  <div class="modal">
+    <h1>MYCELIUM</h1>
+    <div class="tag">FROM ROT, AN EMPIRE</div>
+    <p style="color:var(--dim);font-size:14px">Spread hyphae, decompose the dead, bargain with trees, and rule the groves across two years. Local hotseat with optional bots.</p>
+    <div style="margin-top:16px;font-weight:700">Players</div>
+    <div class="seg" id="segPlayers"></div>
+    <div style="font-weight:700">Humans (rest are bots)</div>
+    <div class="seg" id="segHumans"></div>
+    <button class="go" id="startBtn">Grow ▸</button>
   </div>
-</footer>
+</div>
 
+<div class="overlay" id="endScreen" style="display:none">
+  <div class="modal">
+    <h1>FINAL BLOOM</h1>
+    <div class="tag" id="winLine">—</div>
+    <div class="final" id="finalScores"></div>
+    <button class="go" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<div class="overlay" id="helpScreen" style="display:none">
+  <div class="modal" style="text-align:left;max-width:640px">
+    <h1 style="font-size:26px">How to play</h1>
+    <div class="tag">one action per turn, around the table</div>
+    <div style="font-size:13px;color:var(--ink);line-height:1.6">
+      <p><b>Each season:</b> a weather card resolves, everyone gains Energy (3 + tree Sugar), then players take turns — one action each, going around — until all pass. Then upkeep, then the next season. The start player passes left each season. Eight seasons total.</p>
+      <p><b>Metabolize</b> (free, up to 3 Carbon → Energy per season) fuels your actions.</p>
+      <p><b>Actions:</b> Extend into an adjacent hex (cost = its Resistance). Decompose a tile you sit on for a nutrient (a spent tile keeps its type, so groves survive). Symbiose with an adjacent tree for steady Sugar. Fruit on a tile (caps a tip, scores, enables spores). Sporulate to jump within 3 hexes. Antibiosis to remove a bordering rival. Adapt to buy a trait.</p>
+      <p><b>Upkeep:</b> 1 Energy per branch tip, but your first 2 tips are free. Unpaid tips die.</p>
+      <p><b>Scoring:</b> fruiting bodies, grove majorities (3+ connected same-nutrient tiles, most fruiting bodies wins), trees, network reach, trait sets, spread, and leftover nutrients.</p>
+    </div>
+    <button class="go" id="closeHelp">Got it</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- data
+const SUB = {
+  litter:{resist:1,nut:'C',amt:2,fam:'C',col:'#8be04a',name:'Leaf Litter',ab:'LIT'},
+  deadwood:{resist:3,nut:'C',amt:4,fam:'C',col:'#8be04a',name:'Deadwood',ab:'LOG'},
+  humus:{resist:2,nut:'N',amt:4,fam:'N',col:'#e85ad0',name:'Humus',ab:'HUM'},
+  mineral:{resist:2,nut:'P',amt:2,fam:'P',col:'#3de0e0',name:'Mineral',ab:'MIN'},
+  stone:{resist:null,nut:null,amt:0,fam:null,col:'#6b7280',name:'Stone',ab:'STN'},
+  depleted:{resist:1,nut:null,amt:0,fam:null,col:'#556070',name:'Depleted',ab:'DEP'},
+  root:{resist:2,nut:null,amt:0,fam:null,col:'#f0ca78',name:'Root Node',ab:'TREE'},
+};
+const NUTCOL={C:'#8be04a',N:'#e85ad0',P:'#3de0e0',E:'#e6faf9'};
+const TREES=[
+  {name:'Silver Birch',cost:{N:1,P:1},sugar:3,slots:2,vp:2},
+  {name:'Scots Pine',cost:{P:2},sugar:2,slots:2,vp:2},
+  {name:'Old Oak',cost:{N:2,P:1},sugar:4,slots:1,vp:4},
+  {name:'Beech',cost:{C:1,N:1},sugar:2,slots:2,vp:3},
+  {name:'Aspen',cost:{N:1},sugar:2,slots:2,vp:2},
+  {name:'Hazel',cost:{C:1,P:1},sugar:3,slots:1,vp:3},
+  {name:'Rowan',cost:{N:1},sugar:2,slots:2,vp:2},
+  {name:'Willow',cost:{C:1,P:1},sugar:3,slots:2,vp:2},
+  {name:'Elm',cost:{N:2},sugar:3,slots:1,vp:3},
+  {name:'Larch',cost:{P:1},sugar:2,slots:2,vp:2},
+  {name:'Sweet Chestnut',cost:{C:2,N:1},sugar:4,slots:1,vp:4},
+  {name:'Alder',cost:{N:1,P:1},sugar:2,slots:2,vp:3},
+];
+const ADAPTS=[
+  {name:'Saprotroph',type:'metab',cost:{C:2},t:'Decompose gives +1 nutrient'},
+  {name:'Fast Growth',type:'struct',cost:{C:1,N:1},t:'Extend costs 1 less (min 1)'},
+  {name:'Mycorrhizal',type:'symb',cost:{P:2},t:'Trees give +1 Sugar'},
+  {name:'Toxin Producer',type:'def',cost:{N:2},t:'Antibiosis costs 1 less'},
+  {name:'Cord Network',type:'struct',cost:{C:2},t:'Free-tip allowance 2 → 4'},
+  {name:'Deep Rot',type:'metab',cost:{C:2},t:'Deadwood releases +1 N (2 total)'},
+  {name:'Hartig Net',type:'symb',cost:{P:2},t:'Symbiose costs 1 less'},
+  {name:'Rapid Spread',type:'struct',cost:{N:1,P:1},t:'Sporulate range → 4'},
+  {name:'Parasite',type:'pred',cost:{P:2},t:'(flavor) drain a rival tree'},
+  {name:'Enzyme Bloom',type:'metab',cost:{C:1,N:1},t:'First Decompose each season is free'},
+  {name:'Chitin Wall',type:'def',cost:{N:1,P:1},t:'(flavor) rivals pay +1 to border you'},
+  {name:'Nutrient Exchange',type:'symb',cost:{P:2},t:'Convert 2 of one nutrient to another'},
+];
+const SEASONS=[
+  {name:'Rain',fx:{extendDisc:1},sub:'Extend -1 (min 1)'},
+  {name:'Bloom',fx:{sugarBonus:1},sub:'Trees +1 Sugar'},
+  {name:'Decay Surge',fx:{decompBonus:1},sub:'Decompose +1 nutrient'},
+  {name:'Frost',fx:{frost:true},sub:'Each player loses 1 tip'},
+  {name:'Warm Spring',fx:{baseIncome:4},sub:'Base income 4'},
+  {name:'Drought',fx:{tipUpkeep:2},sub:'Upkeep 2 / tip'},
+  {name:'Mast Year',fx:{mast:true,fruitDisc:1},sub:'Trees give a nutrient; Fruit -1'},
+  {name:'Hard Winter',fx:{dormant:true,extraUpkeep:1},sub:'No Sugar; upkeep +1'},
+];
+const PCOL=['#ea4b4b','#4b8cea','#a65be0','#e8912f'];
+const PNAME=['Red','Blue','Purple','Orange'];
+
+// ---------------------------------------------------------------- hex utils
+const DIRS=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+const key=(q,r)=>q+','+r;
+const parse=k=>k.split(',').map(Number);
+function neighbors(k){const [q,r]=parse(k);return DIRS.map(([dq,dr])=>key(q+dq,r+dr));}
+function hexDist(a,b){const[aq,ar]=parse(a),[bq,br]=parse(b);
+  return (Math.abs(aq-bq)+Math.abs(aq+ar-bq-br)+Math.abs(ar-br))/2;}
+const SIZE=46;
+function px(q,r){return {x:SIZE*Math.sqrt(3)*(q+r/2), y:SIZE*1.5*r};} // pointy-top
+function corners(cx,cy){const p=[];for(let i=0;i<6;i++){const a=Math.PI/180*(60*i-30);
+  p.push([cx+SIZE*Math.cos(a),cy+SIZE*Math.sin(a)]);}return p;}
+const rnd=n=>Math.floor(Math.random()*n);
+const pick=a=>a[rnd(a.length)];
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+// ---------------------------------------------------------------- state
+let G=null;
+
+function makeBoard(nPlayers){
+  const R = nPlayers>=4?4:3;
+  const tiles={};
+  const coords=[];
+  for(let q=-R;q<=R;q++)for(let r=-R;r<=R;r++){if(Math.abs(q+r)<=R){coords.push(key(q,r));}}
+  for(const k of coords){
+    const [q,r]=parse(k);const d=Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r));
+    let t;
+    if(d===0) t=pick(['humus','mineral']);
+    else if(d<=R-2) t=pick(['humus','mineral','humus','mineral','litter']);
+    else t=pick(['litter','litter','deadwood','depleted']);
+    if(Math.random()<0.06) t='stone';
+    const s=SUB[t];
+    tiles[k]={type:t,resist:s.resist,nutType:s.nut,nut:s.amt,occ:null,fruit:false,toxin:null,tree:null};
+  }
+  // trees on mid ring
+  const mid=coords.filter(k=>{const[q,r]=parse(k);return Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r))===R-1 && tiles[k].type!=='stone';});
+  shuffle(mid);
+  const trees=[];
+  const nt=Math.min(nPlayers+2,6,mid.length);
+  for(let i=0;i<nt;i++){const k=mid[i];tiles[k]={...tiles[k],type:'root',resist:2,nutType:null,nut:0};
+    const tr={...JSON.parse(JSON.stringify(TREES[i%TREES.length])),coord:k,partners:[]};
+    tiles[k].tree=trees.length;trees.push(tr);}
+  return {tiles,coords,trees,R};
+}
+
+function setupGame(nPlayers,nHumans){
+  const b=makeBoard(nPlayers);
+  const players=[];
+  for(let i=0;i<nPlayers;i++){
+    players.push({id:i,name:PNAME[i],col:PCOL[i],ai:i>=nHumans,
+      energy:3,C:1,N:1,P:1,hyphae:new Set(),origin:null,fruits:new Set(),trees:[],adapts:[],
+      metabUsed:0,sclerotium:false});
+  }
+  // starting positions on rim, spread out
+  const rim=b.coords.filter(k=>{const[q,r]=parse(k);return Math.max(Math.abs(q),Math.abs(r),Math.abs(q+r))===b.R && b.tiles[k].type!=='stone';});
+  shuffle(rim);
+  const picks=[];
+  for(const k of rim){if(picks.every(p=>hexDist(k,p)>=b.R)){picks.push(k);}if(picks.length===nPlayers)break;}
+  while(picks.length<nPlayers)picks.push(rim[picks.length]);
+  players.forEach((pl,i)=>{
+    let k=picks[i];
+    const s=SUB.litter; b.tiles[k]={type:'litter',resist:1,nutType:'C',nut:1,occ:i,fruit:false,toxin:null,tree:null};
+    pl.origin=k; pl.hyphae.add(k);
+    let cur=k;
+    for(let s2=0;s2<2;s2++){
+      const opts=neighbors(cur).filter(n=>b.tiles[n]&&b.tiles[n].occ===null&&b.tiles[n].type!=='stone');
+      if(!opts.length)break;
+      opts.sort((a,c)=>hexDist('0,0',a)-hexDist('0,0',c));
+      cur=opts[0]; b.tiles[cur].occ=i; pl.hyphae.add(cur);
+    }
+  });
+  const deck=SEASONS.map((s,i)=>i); // fixed order 1..8
+  const market=shuffle(ADAPTS.map((_,i)=>i)).slice(0,4);
+  const marketPool=ADAPTS.map((_,i)=>i).filter(i=>!market.includes(i));
+  shuffle(marketPool);
+  G={board:b,players,trees:b.trees,deck,seasonIdx:-1,season:null,fx:{},
+     market,marketPool,turnOrder:[],current:0,passed:new Set(),phase:'',log:[],pending:null,nPlayers};
+  logMsg('<b>New forest.</b> '+nPlayers+' colonies. Two years, eight seasons.');
+  startSeason();
+}
+
+// ---------------------------------------------------------------- season / phase engine
+function startSeason(){
+  G.seasonIdx++;
+  if(G.seasonIdx>=8){endGame();return;}
+  const si=G.deck[G.seasonIdx];
+  G.season=SEASONS[si]; G.fx=G.season.fx;
+  G.players.forEach(p=>p.metabUsed=0);
+  logMsg('— Season '+(G.seasonIdx+1)+': <b>'+G.season.name+'</b> ('+G.season.sub+')');
+  // income
+  for(const p of G.players){
+    let base=G.fx.baseIncome||3; p.energy+=base;
+    if(!G.fx.dormant){
+      for(const ti of p.trees){const tr=G.trees[ti];let s=tr.sugar+(G.fx.sugarBonus||0);
+        if(p.adapts.some(a=>ADAPTS[a].name==='Mycorrhizal'))s+=1; p.energy+=s;}
+    }
+    if(G.fx.mast){for(const ti of p.trees){const low=['C','N','P'].sort((a,b)=>p[a]-p[b])[0];p[low]++;}}
+  }
+  const st=G.seasonIdx%G.players.length;
+  G.turnOrder=G.players.map((_,i)=>(st+i)%G.players.length);
+  G.passed=new Set(); G.current=0; G.phase='Action';
+  nextTurn(true);
+}
+function activePid(){return G.turnOrder[G.current];}
+function advance(){
+  let n=G.turnOrder.length,c=G.current;
+  for(let i=0;i<n;i++){c=(c+1)%n;if(!G.passed.has(G.turnOrder[c])){G.current=c;return true;}}
+  return false;
+}
+function nextTurn(first){
+  if(G.passed.size>=G.turnOrder.length){endActionPhase();return;}
+  if(!first){ if(!advance()){endActionPhase();return;} }
+  else { // ensure current isn't passed (none are at start)
+    if(G.passed.has(activePid())) {if(!advance()){endActionPhase();return;}}
+  }
+  G.pending=null;
+  render();
+  const p=G.players[activePid()];
+  if(p.ai){ setPrompt(p.name+' (bot) is thinking…'); setTimeout(aiTurn,650); }
+  else setPrompt('Your move, '+p.name+'. Take one action or pass.');
+}
+function endActionPhase(){
+  G.phase='Upkeep';
+  for(const p of G.players){upkeep(p);}
+  render();
+  logMsg('— Upkeep resolved.');
+  setTimeout(startSeason,500);
+}
+
+function tipsOf(p){
+  const out=[];
+  for(const k of p.hyphae){
+    if(k===p.origin||G.board.tiles[k].fruit)continue;
+    let adj=0;for(const n of neighbors(k)){if(p.hyphae.has(n))adj++;}
+    if(adj<=1)out.push(k);
+  }
+  return out;
+}
+function upkeep(p){
+  // frost
+  if(G.fx.frost){const ts=tipsOf(p);if(ts.length){const drop=ts[0];p.hyphae.delete(drop);G.board.tiles[drop].occ=null;
+    logMsg(p.name+' loses a tip to frost.');}}
+  let cost=(G.fx.tipUpkeep||1)+(G.fx.extraUpkeep||0);
+  const rhizo=p.adapts.some(a=>ADAPTS[a].name==='Dense Rhizomorph');
+  let free=2; if(p.adapts.some(a=>ADAPTS[a].name==='Cord Network'))free=4;
+  let ts=tipsOf(p);
+  let payable=Math.max(0,ts.length-free);
+  let due=payable*cost;
+  while(p.energy<due && ts.length){
+    // metabolize if possible
+    if(p.metabUsed<3&&p.C>0){p.C--;p.energy++;p.metabUsed++;continue;}
+    const drop=ts.pop();p.hyphae.delete(drop);G.board.tiles[drop].occ=null;due-=cost;
+    logMsg(p.name+' loses a tip (unpaid upkeep).');
+  }
+  p.energy=Math.max(0,p.energy-Math.min(p.energy,due));
+}
+
+// ---------------------------------------------------------------- action validity
+function frontier(p){
+  const f=new Set();
+  for(const k of p.hyphae)for(const n of neighbors(k)){
+    const t=G.board.tiles[n];
+    if(t&&t.type!=='stone'&&t.occ===null&&(!t.toxin||t.toxin===p.id||p.adapts.some(a=>ADAPTS[a].name==='Hydrophobin')))f.add(n);
+  }
+  return [...f];
+}
+function extendCost(p,k){
+  let c=G.board.tiles[k].resist-(p.adapts.some(a=>ADAPTS[a].name==='Fast Growth')?1:0);
+  c-=(G.fx.extendDisc||0); return Math.max(1,c);
+}
+function canDecompose(p){return [...p.hyphae].filter(k=>{const t=G.board.tiles[k];return t.nut>0&&t.nutType;});}
+function canSymbiose(p){
+  const out=[];
+  G.trees.forEach((tr,ti)=>{
+    if(tr.partners.length>=tr.slots||tr.partners.includes(p.id))return;
+    if(neighbors(tr.coord).some(n=>p.hyphae.has(n)))out.push(ti);
+  });return out;
+}
+function canFruit(p){return [...p.hyphae].filter(k=>!G.board.tiles[k].fruit);}
+function fruitCost(){return Math.max(0,1-(G.fx.fruitDisc||0));}
+function canSporulateFrom(p){return [...p.fruits];}
+function sporeTargets(p,from){
+  const rng=p.adapts.some(a=>ADAPTS[a].name==='Rapid Spread')?4:3;
+  return G.board.coords.filter(k=>{const t=G.board.tiles[k];
+    return t&&t.type!=='stone'&&t.occ===null&&hexDist(from,k)>0&&hexDist(from,k)<=rng;});
+}
+function canAntibiosis(p){
+  const out=[];
+  for(const k of p.hyphae)for(const n of neighbors(k)){
+    const t=G.board.tiles[n];if(t&&t.occ!==null&&t.occ!==p.id&&!t.fruit)out.push(n);}
+  return [...new Set(out)];
+}
+function afford(p,cost){return ['C','N','P'].every(x=>(p[x]||0)>=(cost[x]||0));}
+function payNut(p,cost){for(const x in cost)p[x]-=cost[x];}
+function metabolize(p,need){while(p.energy<need&&p.metabUsed<3&&p.C>0){p.C--;p.energy++;p.metabUsed++;}return p.energy>=need;}
+
+// ---------------------------------------------------------------- action resolution
+function doExtend(p,k){p.energy-=extendCost(p,k);G.board.tiles[k].occ=p.id;p.hyphae.add(k);
+  logMsg(p.name+' extends into '+SUB[G.board.tiles[k].type].name+'.');}
+function doDecompose(p,k){const t=G.board.tiles[k];p.energy-=1;
+  let g=1+(G.fx.decompBonus||0);if(p.adapts.some(a=>ADAPTS[a].name==='Saprotroph'))g+=1;
+  g=Math.min(g,t.nut);p[t.nutType]+=g;t.nut-=g;
+  logMsg(p.name+' decomposes '+g+' '+t.nutType+'.');
+  if(t.nut<=0){const wasDead=t.type==='deadwood';t.spent=true;t.resist=1;
+    if(wasDead){let bonus=1+(p.adapts.some(a=>ADAPTS[a].name==='Deep Rot')?1:0);p.N+=bonus;logMsg('  deadwood releases '+bonus+' N.');}}}
+function doSymbiose(p,ti){const tr=G.trees[ti];let c=2-(p.adapts.some(a=>ADAPTS[a].name==='Hartig Net')?1:0);
+  p.energy-=Math.max(0,c);payNut(p,tr.cost);tr.partners.push(p.id);p.trees.push(ti);
+  logMsg(p.name+' bonds with '+tr.name+'.');}
+function doFruit(p,k){p.energy-=fruitCost();p.C-=1;p.N-=1;G.board.tiles[k].fruit=true;p.fruits.add(k);
+  logMsg(p.name+' fruits.');}
+function doSporulate(p,from,tgt){p.energy-=1;p.C-=1;G.board.tiles[tgt].occ=p.id;p.hyphae.add(tgt);
+  logMsg(p.name+' sporulates across the gap.');}
+function doAntibiosis(p,k){let c=2-(p.adapts.some(a=>ADAPTS[a].name==='Toxin Producer')?1:0);
+  p.energy-=Math.max(0,c);p.P-=1;const t=G.board.tiles[k];const v=t.occ;
+  G.players[v].hyphae.delete(k);t.occ=null;
+  if(p.adapts.some(a=>ADAPTS[a].name==='Mycoparasite'))p.C++;
+  logMsg(p.name+' poisons '+G.players[v].name+"'s hypha.");}
+function doAdapt(p,mi){const ci=G.market[mi];payNut(p,ADAPTS[ci].cost);p.adapts.push(ci);
+  logMsg(p.name+' evolves '+ADAPTS[ci].name+'.');
+  if(G.marketPool.length){G.market[mi]=G.marketPool.pop();}else{G.market.splice(mi,1);}}
+
+// ---------------------------------------------------------------- human interaction
+function chooseAction(type){
+  const p=G.players[activePid()]; if(p.ai)return;
+  if(type==='meta'){ if(p.metabUsed<3&&p.C>0){p.C--;p.energy++;p.metabUsed++;logMsg(p.name+' metabolizes 1 C → 1 E.');render();} return; }
+  if(type==='pass'){ G.passed.add(p.id); logMsg(p.name+' passes.'); endTurn(); return; }
+  if(G.pending&&G.pending.type===type){ G.pending=null; render(); setPrompt('Your move, '+p.name+'. Take one action or pass.'); return; }
+  G.pending={type,step:1,from:null};
+  render();
+  const prompts={extend:'EXTEND — now click a glowing hex on the board to grow into it.',
+    decompose:'DECOMPOSE — click one of your tiles (glowing) to pull a nutrient from it.',
+    symbiose:'SYMBIOSE — click a highlighted tree to bond with it.',
+    fruit:'FRUIT — click one of your tiles (glowing) to fruit there.',
+    sporulate:'SPORULATE — click one of your fruiting bodies to launch from.',
+    antibiosis:'ANTIBIOSIS — click a glowing rival hypha to remove it.',
+    adapt:'ADAPT — click a trait card in the market to buy it.'};
+  setPrompt((prompts[type]||'Select a target on the board.')+'  <span style="color:var(--dim)">(click '+type.charAt(0).toUpperCase()+type.slice(1)+' again to cancel)</span>');
+}
+function hexClick(k){
+  const p=G.players[activePid()]; if(p.ai||!G.pending)return;
+  const t=G.pending.type;
+  if(t==='extend'){ if(frontier(p).includes(k)&&metabolize(p,extendCost(p,k))){doExtend(p,k);endTurn();} }
+  else if(t==='decompose'){ if(canDecompose(p).includes(k)&&metabolize(p,1)){doDecompose(p,k);endTurn();} }
+  else if(t==='fruit'){ if(canFruit(p).includes(k)&&afford(p,{C:1,N:1})&&metabolize(p,fruitCost())){doFruit(p,k);endTurn();} }
+  else if(t==='antibiosis'){ if(canAntibiosis(p).includes(k)&&afford(p,{P:1})&&metabolize(p,2)){doAntibiosis(p,k);endTurn();} }
+  else if(t==='symbiose'){ const tt=G.board.tiles[k]; if(tt.tree!==null){const ti=tt.tree;
+      if(canSymbiose(p).includes(ti)&&afford(p,G.trees[ti].cost)&&metabolize(p,2)){doSymbiose(p,ti);endTurn();}} }
+  else if(t==='sporulate'){
+    if(G.pending.step===1){ if(p.fruits.has(k)){G.pending.from=k;G.pending.step=2;render();setPrompt('Click a hex within range to seed.');} }
+    else { if(sporeTargets(p,G.pending.from).includes(k)&&afford(p,{C:1})&&metabolize(p,1)){doSporulate(p,G.pending.from,k);endTurn();} }
+  }
+}
+function marketClick(mi){
+  const p=G.players[activePid()]; if(p.ai||!G.pending||G.pending.type!=='adapt')return;
+  if(afford(p,ADAPTS[G.market[mi]].cost)){doAdapt(p,mi);endTurn();}
+}
+function endTurn(){ G.pending=null; nextTurn(false); }
+
+// ---------------------------------------------------------------- AI
+function aiTurn(){
+  const p=G.players[activePid()]; if(!p||!p.ai)return;
+  // gather candidates with values
+  const cands=[];
+  const need={C:Math.max(0,2-p.C),N:Math.max(0,2-p.N),P:Math.max(0,2-p.P)};
+  const curTips=tipsOf(p).length, over=Math.max(0,curTips-2);
+  // extend
+  for(const k of frontier(p)){const t=G.board.tiles[k];let v=0.6-0.35*over;
+    if(t.nutType)v+=0.4*t.nut*(1+need[t.nutType]);
+    G.trees.forEach(tr=>{if(tr.partners.length<tr.slots&&!tr.partners.includes(p.id)&&neighbors(tr.coord).includes(k))v+=3+tr.sugar;});
+    cands.push({v,f:()=>{if(metabolize(p,extendCost(p,k))&&p.energy>=extendCost(p,k)){doExtend(p,k);return true;}return false;}});}
+  // decompose
+  for(const k of canDecompose(p)){const t=G.board.tiles[k];let v=0.8+(1+(G.fx.decompBonus||0))*(0.7+need[t.nutType]);
+    cands.push({v,f:()=>{if(metabolize(p,1)&&p.energy>=1){doDecompose(p,k);return true;}return false;}});}
+  // symbiose
+  for(const ti of canSymbiose(p)){const tr=G.trees[ti];if(afford(p,tr.cost)){let v=3+tr.sugar*1.5+tr.vp;
+    cands.push({v,f:()=>{if(metabolize(p,2)&&p.energy>=2){doSymbiose(p,ti);return true;}return false;}});}}
+  // fruit
+  const tipset=new Set(tipsOf(p));
+  for(const k of canFruit(p)){if(afford(p,{C:1,N:1})){let v=2.2+(tipset.has(k)?1:0);
+    cands.push({v,f:()=>{if(metabolize(p,fruitCost())&&p.energy>=fruitCost()){doFruit(p,k);return true;}return false;}});}}
+  // adapt
+  if(p.adapts.length<4){G.market.forEach((ci,mi)=>{if(afford(p,ADAPTS[ci].cost)){
+    cands.push({v:1.5,f:()=>{doAdapt(p,mi);return true;}});}});}
+  // sporulate
+  for(const fr of p.fruits){const tg=sporeTargets(p,fr);if(tg.length&&afford(p,{C:1})){const t=tg[0];
+    cands.push({v:1.1,f:()=>{if(metabolize(p,1)&&p.energy>=1){doSporulate(p,fr,t);return true;}return false;}});}}
+  // antibiosis (defensive, low priority)
+  for(const k of canAntibiosis(p)){if(afford(p,{P:1})){cands.push({v:0.7,f:()=>{if(metabolize(p,2)&&p.energy>=2){doAntibiosis(p,k);return true;}return false;}});}}
+
+  cands.sort((a,b)=>b.v-a.v);
+  let acted=false;
+  for(const c of cands){ if(c.v<0.9)break; if(c.f()){acted=true;break;} }
+  if(!acted){ G.passed.add(p.id); logMsg(p.name+' passes.'); }
+  G.pending=null; nextTurn(false);
+}
+
+// ---------------------------------------------------------------- scoring
+function groveScore(){
+  const fams={C:['litter','deadwood'],N:['humus'],P:['mineral']};
+  const bonus={}; G.players.forEach(p=>bonus[p.id]=0);
+  for(const fam in fams){
+    const set=new Set(G.board.coords.filter(k=>fams[fam].includes(G.board.tiles[k].type)));
+    const seen=new Set();
+    for(const start of set){
+      if(seen.has(start))continue;
+      // BFS component
+      const comp=[];const stack=[start];seen.add(start);
+      while(stack.length){const k=stack.pop();comp.push(k);
+        for(const n of neighbors(k)){if(set.has(n)&&!seen.has(n)){seen.add(n);stack.push(n);}}}
+      if(comp.length<3)continue;
+      const cnt={};
+      for(const k of comp){const t=G.board.tiles[k];if(t.fruit&&t.occ!==null)cnt[t.occ]=(cnt[t.occ]||0)+1;}
+      const ranked=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+      if(ranked.length){bonus[ranked[0][0]]+=3;if(ranked.length>1)bonus[ranked[1][0]]+=1;}
+    }
+  }
+  return bonus;
+}
+function scorePlayer(p,grove){
+  let s=0;const parts={};
+  parts.fruits=p.fruits.size; s+=parts.fruits;
+  parts.trees=p.trees.reduce((a,ti)=>a+G.trees[ti].vp,0); s+=parts.trees;
+  parts.reach=Math.floor(p.hyphae.size/2); s+=parts.reach;
+  const types=new Set(p.adapts.map(a=>ADAPTS[a].type));
+  parts.adapt=types.size>=3?4:0; s+=parts.adapt;
+  const fams=new Set([...p.hyphae].map(k=>SUB[G.board.tiles[k].type].fam).filter(Boolean));
+  parts.spread=(fams.has('C')&&fams.has('N')&&fams.has('P'))?2:0; s+=parts.spread;
+  parts.nut=Math.floor((p.C+p.N+p.P)/3); s+=parts.nut;
+  parts.grove=grove[p.id]||0; s+=parts.grove;
+  return {s,parts};
+}
+function endGame(){
+  const grove=groveScore();
+  const rows=G.players.map(p=>({p,...scorePlayer(p,grove)}));
+  rows.sort((a,b)=>b.s-a.s);
+  const best=rows[0].s;const winners=rows.filter(r=>r.s===best).map(r=>r.p.name);
+  document.getElementById('winLine').textContent=(winners.length>1?'Tie: ':'Winner: ')+winners.join(', ')+' — '+best+' VP';
+  document.getElementById('finalScores').innerHTML=rows.map((r,i)=>
+    `<div class="fr ${i===0?'win':''}"><span><span class="dot" style="background:${r.p.col}"></span> ${r.p.name}</span>
+     <span>${r.s} VP <small style="color:var(--dim)">(${r.parts.fruits}f ${r.parts.grove}g ${r.parts.trees}t ${r.parts.reach}r)</small></span></div>`).join('');
+  document.getElementById('endScreen').style.display='flex';
+  setPrompt('Game over.');
+}
+
+// ---------------------------------------------------------------- rendering
+function setPrompt(t){document.getElementById('prompt').innerHTML=t;}
+function logMsg(t){G.log.unshift(t);if(G.log.length>120)G.log.pop();
+  const el=document.getElementById('log');if(el)el.innerHTML=G.log.map(l=>'<div>'+l+'</div>').join('');}
+
+function render(){
+  if(!G)return;
+  document.getElementById('yr').textContent=G.seasonIdx<4?1:2;
+  document.getElementById('sn').textContent=(G.seasonIdx+1)+'/8';
+  document.getElementById('seasonName').innerHTML='<b>'+(G.season?G.season.name:'—')+'</b> · '+(G.season?G.season.sub:'');
+  document.getElementById('phase').textContent=G.phase;
+  renderSeasonTrack(); renderBoard(); renderRight(); renderPlayers();
+  const el=document.getElementById('log');el.innerHTML=G.log.map(l=>'<div>'+l+'</div>').join('');
+}
+function renderSeasonTrack(){
+  document.getElementById('seasonTrack').innerHTML=G.deck.map((si,i)=>{
+    const s=SEASONS[si];const cls=i===G.seasonIdx?'cur':(i<G.seasonIdx?'done':'');
+    return `<div class="srow ${cls}"><span class="n">S${i+1}</span><div><b>${s.name}</b><small>${s.sub}</small></div></div>`;
+  }).join('');
+}
+function renderBoard(){
+  const svg=document.getElementById('board');
+  const pts=G.board.coords.map(k=>{const[q,r]=parse(k);return px(q,r);});
+  const minx=Math.min(...pts.map(p=>p.x))-SIZE-6, maxx=Math.max(...pts.map(p=>p.x))+SIZE+6;
+  const miny=Math.min(...pts.map(p=>p.y))-SIZE-6, maxy=Math.max(...pts.map(p=>p.y))+SIZE+6;
+  svg.setAttribute('viewBox',`${minx} ${miny} ${maxx-minx} ${maxy-miny}`);
+  const p=G.players[activePid&&G.turnOrder.length?activePid():0];
+  const human=p&&!p.ai&&G.pending;
+  // valid targets
+  let targets=new Set();
+  if(human){const t=G.pending.type;
+    if(t==='extend')targets=new Set(frontier(p));
+    else if(t==='decompose')targets=new Set(canDecompose(p));
+    else if(t==='fruit')targets=new Set(canFruit(p));
+    else if(t==='antibiosis')targets=new Set(canAntibiosis(p));
+    else if(t==='symbiose')targets=new Set(canSymbiose(p).map(ti=>G.trees[ti].coord));
+    else if(t==='sporulate'){targets=G.pending.step===1?new Set([...p.fruits]):new Set(sporeTargets(p,G.pending.from));}
+  }
+  let out='';
+  for(const k of G.board.coords){
+    const t=G.board.tiles[k];const[q,r]=parse(k);const {x,y}=px(q,r);
+    const c=corners(x,y).map(pt=>pt.map(v=>v.toFixed(1)).join(',')).join(' ');
+    const s=SUB[t.type];const isT=targets.has(k);
+    out+=`<g class="hx ${isT?'tgt':''}" data-k="${k}" onclick="hexClick('${k}')">`;
+    out+=`<polygon points="${c}" fill="${isT?'#123642':'#0a0e14'}" stroke="${isT?'#7ff0f0':s.col}" stroke-width="${isT?5:2.4}" opacity="${(t.spent||t.type==='depleted'||t.type==='stone')?0.5:0.95}"/>`;
+    // label
+    out+=`<text x="${x}" y="${y-SIZE*0.5}" fill="${s.col}" font-size="11" font-weight="700" text-anchor="middle" opacity="0.8">${s.ab}</text>`;
+    // depletion marker (tile keeps its family; token means spent)
+    if(t.spent){out+=`<circle cx="${x}" cy="${y+SIZE*0.6}" r="4.5" fill="none" stroke="#7f97a2" stroke-width="1.6"/>`;}
+    // nutrient pips
+    if(t.nut>0&&t.nutType){for(let i=0;i<t.nut;i++){out+=`<circle cx="${x-((t.nut-1)*6)/2+i*6}" cy="${y+SIZE*0.62}" r="2.6" fill="${NUTCOL[t.nutType]}"/>`;}}
+    // tree
+    if(t.tree!==null){const tr=G.trees[t.tree];out+=`<circle cx="${x}" cy="${y-2}" r="11" fill="none" stroke="${SUB.root.col}" stroke-width="2.5"/>`;
+      out+=`<text x="${x}" y="${y+SIZE*0.34}" fill="${SUB.root.col}" font-size="9" text-anchor="middle">${tr.name.split(' ')[0]}</text>`;
+      tr.partners.forEach((pid,i)=>{out+=`<circle cx="${x-8+i*8}" cy="${y-2}" r="3" fill="${PCOL[pid]}"/>`;});}
+    // toxin
+    if(t.toxin!==null&&t.occ===null){out+=`<text x="${x}" y="${y+4}" fill="#e85ad0" font-size="15" text-anchor="middle">✕</text>`;}
+    // occupant
+    if(t.occ!==null){const pc=PCOL[t.occ];const isOrigin=G.players[t.occ].origin===k;
+      if(t.fruit){out+=`<circle cx="${x}" cy="${y+4}" r="6" fill="${pc}"/><path d="M ${x-11} ${y+2} A 11 11 0 0 1 ${x+11} ${y+2}" fill="none" stroke="#e6faf9" stroke-width="2.5"/>`;}
+      else if(isOrigin){out+=`<circle cx="${x}" cy="${y}" r="11" fill="${pc}" stroke="#e6faf9" stroke-width="2"/>`;}
+      else {out+=`<circle cx="${x}" cy="${y}" r="8" fill="${pc}"/>`;}
+    }
+    out+='</g>';
+  }
+  svg.innerHTML=out;
+}
+function renderRight(){
+  const p=G.players[activePid&&G.turnOrder.length?activePid():0];
+  document.getElementById('turnTitle').innerHTML=`<span class="dot" style="background:${p.col}"></span> ${p.name}${p.ai?' (bot)':''}`;
+  document.getElementById('resRow').innerHTML=
+    `<div class="r"><span class="dot" style="background:#e6faf9"></span>${p.energy} E</div>`+
+    `<div class="r"><span class="dot" style="background:${NUTCOL.C}"></span>${p.C} C</div>`+
+    `<div class="r"><span class="dot" style="background:${NUTCOL.N}"></span>${p.N} N</div>`+
+    `<div class="r"><span class="dot" style="background:${NUTCOL.P}"></span>${p.P} P</div>`;
+  // actions
+  const human=!p.ai&&G.phase==='Action';
+  const A=document.getElementById('actions');
+  const pend=G.pending?G.pending.type:null;
+  const mk=(id,label,sub,ok)=>`<button class="btn ${pend===id?'active':''}" ${(!human||!ok)?'disabled':''} onclick="chooseAction('${id}')">${label}<small>${sub}</small></button>`;
+  const canPayE=(e)=>p.energy+Math.min(3-p.metabUsed,p.C)>=e;
+  const minExt=frontier(p).reduce((m,k)=>Math.min(m,extendCost(p,k)),99);
+  let can={extend:frontier(p).length>0&&canPayE(minExt),
+    decompose:canDecompose(p).length>0&&canPayE(1),
+    symbiose:canSymbiose(p).some(ti=>afford(p,G.trees[ti].cost))&&canPayE(2),
+    fruit:canFruit(p).length>0&&afford(p,{C:1,N:1})&&canPayE(fruitCost()),
+    sporulate:p.fruits.size>0&&afford(p,{C:1})&&canPayE(1)&&[...p.fruits].some(f=>sporeTargets(p,f).length),
+    antibiosis:canAntibiosis(p).length>0&&afford(p,{P:1})&&canPayE(2),
+    adapt:p.adapts.length<4&&G.market.some(ci=>afford(p,ADAPTS[ci].cost))};
+  A.innerHTML=
+    `<button class="btn meta" ${(!human||p.metabUsed>=3||p.C<1)?'disabled':''} onclick="chooseAction('meta')">Metabolize<small>1 C → 1 E (free, ${3-p.metabUsed} left)</small></button>`+
+    mk('extend','Extend','grow into a hex (= Resistance)',can.extend)+
+    mk('decompose','Decompose','1 E → a nutrient',can.decompose)+
+    mk('symbiose','Symbiose','2 E + cost → tree Sugar',can.symbiose)+
+    mk('fruit','Fruit','1 E + 1C + 1N',can.fruit)+
+    mk('sporulate','Sporulate','1 E + 1C → jump',can.sporulate)+
+    mk('antibiosis','Antibiosis','2 E + 1P → remove rival',can.antibiosis)+
+    mk('adapt','Adapt','buy a trait',can.adapt)+
+    `<button class="btn pass" ${!human?'disabled':''} onclick="chooseAction('pass')">Pass<small>done for this season</small></button>`;
+  // market
+  document.getElementById('market').innerHTML=G.market.map((ci,mi)=>{const a=ADAPTS[ci];
+    const cost=Object.entries(a.cost).map(([k,v])=>v+k).join(' ');
+    const buy=(!p.ai&&G.pending&&G.pending.type==='adapt'&&afford(p,a.cost));
+    return `<div class="card ${buy?'buy':''}" ${buy?`onclick="marketClick(${mi})"`:''}><span class="cost">${cost}</span><b>${a.name}</b><br><span style="color:var(--dim)">${a.t}</span></div>`;}).join('');
+  // own stuff
+  const trs=p.trees.map(ti=>G.trees[ti].name).join(', ')||'none';
+  const ads=p.adapts.map(a=>ADAPTS[a].name).join(', ')||'none';
+  document.getElementById('ownStuff').innerHTML=`Trees: ${trs}<br>Traits: ${ads}<br>Tips: ${tipsOf(p).length} (first 2 free)`;
+}
+function renderPlayers(){
+  const grove=null;
+  document.getElementById('players').innerHTML=G.players.map(p=>{
+    const sc=scorePlayer(p,{}); // live-ish (no grove mid-game)
+    const cur=activePid&&G.turnOrder.length&&activePid()===p.id;
+    return `<div class="pcard ${cur?'turn':''}" style="color:${p.col}">
+      <div class="nm"><span class="dot" style="background:${p.col}"></span>${p.name}${p.ai?' 🤖':''}${G.passed.has(p.id)?' ·passed':''}</div>
+      <div class="sc">~${sc.s} VP · ${p.hyphae.size} hyphae · ${p.fruits.size} fruit · ${p.energy}E</div></div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------- setup UI
+let cfg={players:3,humans:1};
+function buildSetup(){
+  const sp=document.getElementById('segPlayers');sp.innerHTML='';
+  [2,3,4].forEach(n=>{const b=document.createElement('button');b.textContent=n;b.className=cfg.players===n?'on':'';
+    b.onclick=()=>{cfg.players=n;if(cfg.humans>n)cfg.humans=n;buildSetup();};sp.appendChild(b);});
+  const sh=document.getElementById('segHumans');sh.innerHTML='';
+  for(let h=0;h<=cfg.players;h++){const b=document.createElement('button');b.textContent=h;b.className=cfg.humans===h?'on':'';
+    b.onclick=()=>{cfg.humans=h;buildSetup();};sh.appendChild(b);}
+}
+document.getElementById('startBtn').onclick=()=>{
+  document.getElementById('setup').style.display='none';
+  setupGame(cfg.players,cfg.humans);
+};
+document.getElementById('againBtn').onclick=()=>{document.getElementById('endScreen').style.display='none';
+  document.getElementById('setup').style.display='flex';};
+document.getElementById('helpLink').onclick=()=>document.getElementById('helpScreen').style.display='flex';
+document.getElementById('closeHelp').onclick=()=>document.getElementById('helpScreen').style.display='none';
+buildSetup();
+</script>
 </body>
 </html>
