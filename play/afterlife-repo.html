@@ -20,8 +20,15 @@
   html,body{height:100%;background:#05060a;overflow:hidden;
     font-family:"Courier New",Courier,monospace;color:var(--bone);
     -webkit-user-select:none;user-select:none;touch-action:none}
-  #stage{position:fixed;inset:0;display:grid;place-items:center}
-  #wrap{position:relative;width:min(100vw,calc(100vh*1.6));aspect-ratio:16/10}
+  #stage{position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center}
+  #wrap{position:relative;width:min(100vw,calc(100vh*1.6));aspect-ratio:16/10;flex:none}
+  /* portrait: the deck takes a fixed slice, the canvas takes everything left */
+  @media (orientation:portrait){
+    #stage{justify-content:flex-start}
+    #wrap{width:100vw;margin-top:auto}
+    #touch.on{margin-top:auto;margin-bottom:0}
+  }
   canvas{width:100%;height:100%;display:block;background:var(--night);
     box-shadow:0 0 0 1px #1b2030, 0 24px 80px rgba(0,0,0,.8)}
   .screen{position:absolute;inset:0;display:grid;place-items:center;
@@ -50,23 +57,51 @@
   .eyebrow{font-size:clamp(9px,1.2vw,12px);letter-spacing:.32em;color:var(--ink);margin-bottom:10px}
   .roster{margin-top:20px;font-size:clamp(10px,1.35vw,13px);line-height:2;opacity:.85}
   .roster b{color:var(--lamp);font-weight:400}
-  #touch{position:absolute;inset:0;display:none;pointer-events:none}
-  #touch.on{display:block}
-  .pad{position:absolute;bottom:4%;width:19%;padding-top:19%;border-radius:50%;
-    border:2px solid rgba(233,228,214,.3);background:rgba(233,228,214,.09);
-    pointer-events:auto;display:grid;place-items:center;
-    -webkit-tap-highlight-color:transparent}
-  .pad:active{background:rgba(255,198,92,.22);border-color:var(--lamp)}
-  .pad span{position:absolute;font-size:min(5.5vw,26px);opacity:.8;
-    font-family:"Courier New",monospace;letter-spacing:.06em}
-  #tl{left:2%}#tr{left:23%}
-  #tj{right:2%;bottom:4%}#tg{right:23%;bottom:4%;background:rgba(255,198,92,.12);
-    border-color:rgba(255,198,92,.4)}
-  #tp{position:absolute;top:3%;right:3%;width:11%;padding-top:11%;border-radius:8px;
-    border:2px solid rgba(233,228,214,.24);background:rgba(233,228,214,.07);
-    pointer-events:auto;display:grid;place-items:center}
-  #tp span{position:absolute;font-size:min(3.4vw,16px);opacity:.7;
-    font-family:"Courier New",monospace}
+  /* ---- controls ----------------------------------------------------
+     Portrait: a real control deck under the canvas, nothing over the game.
+     Landscape: no spare room, so the pads float in the corners at low
+     opacity, clear of the HUD bar and the footer.                       */
+  #touch{display:none;width:100%;flex:0 0 auto;
+    max-height:min(34vh,240px);box-sizing:border-box;
+    align-items:center;justify-content:space-between;
+    padding:14px max(14px,env(safe-area-inset-left))
+            max(14px,env(safe-area-inset-bottom))
+            max(14px,env(safe-area-inset-right));
+    gap:12px;background:#05060a}
+  #touch.on{display:flex}
+  .cluster{display:flex;gap:12px;align-items:center}
+  .pad{width:clamp(60px,17vw,104px);aspect-ratio:1;border-radius:50%;
+    border:2px solid rgba(233,228,214,.32);background:rgba(233,228,214,.09);
+    pointer-events:auto;display:grid;place-items:center;flex:none;
+    -webkit-tap-highlight-color:transparent;touch-action:none;
+    transition:background .06s linear,border-color .06s linear}
+  .pad:active{background:rgba(255,198,92,.26);border-color:var(--lamp)}
+  .pad span{font-size:clamp(13px,3.4vw,20px);opacity:.85;
+    font-family:"Courier New",monospace;letter-spacing:.06em;pointer-events:none}
+  #tg{background:rgba(255,198,92,.13);border-color:rgba(255,198,92,.45)}
+  #tj{background:rgba(233,228,214,.13)}
+  #tp{width:clamp(38px,9vw,54px);aspect-ratio:1;border-radius:8px;
+    border:2px solid rgba(233,228,214,.24);background:rgba(233,228,214,.06);
+    pointer-events:auto;display:grid;place-items:center;flex:none;
+    -webkit-tap-highlight-color:transparent;touch-action:none}
+  #tp span{font-size:clamp(11px,2.4vw,15px);opacity:.65;
+    font-family:"Courier New",monospace;pointer-events:none}
+
+  /* landscape phones have no letterbox to spare, so overlay instead */
+  @media (orientation:landscape) and (max-height:520px){
+    #stage{display:grid;place-items:center}
+    #touch{position:fixed;inset:0;width:auto;padding:0;background:none;
+      pointer-events:none}
+    #touch.on{display:block}
+    .cluster{position:fixed;bottom:max(10px,env(safe-area-inset-bottom));
+      pointer-events:none}
+    .cluster.leftside{left:max(10px,env(safe-area-inset-left))}
+    .cluster.rightside{right:max(10px,env(safe-area-inset-right))}
+    .pad{width:clamp(52px,11vh,74px);opacity:.62}
+    .pad:active{opacity:1}
+    #tp{position:fixed;top:max(8px,env(safe-area-inset-top));
+      left:max(8px,env(safe-area-inset-left));opacity:.5;width:clamp(30px,6vh,40px)}
+  }
 </style>
 </head>
 <body>
@@ -125,14 +160,20 @@
     </div>
   </div>
 
+  </div><!-- /wrap -->
+
   <div id="touch">
-    <div class="pad" id="tl"><span>&#8592;</span></div>
-    <div class="pad" id="tr"><span>&#8594;</span></div>
-    <div class="pad" id="tj"><span>&#9650;</span></div>
-    <div class="pad" id="tg"><span>LIFT</span></div>
+    <div class="cluster leftside">
+      <div class="pad" id="tl"><span>&#8592;</span></div>
+      <div class="pad" id="tr"><span>&#8594;</span></div>
+    </div>
     <div id="tp"><span>II</span></div>
+    <div class="cluster rightside">
+      <div class="pad" id="tg"><span>LIFT</span></div>
+      <div class="pad" id="tj"><span>JUMP</span></div>
+    </div>
   </div>
-</div></div>
+</div><!-- /stage -->
 
 <script>
 "use strict";
@@ -534,7 +575,7 @@ const SPAWN_CHARS = { rug:"1", wardrobe:"2", mirror:"3", chandelier:"4",
 let grid, items, player, van, particles, ghosts, wisps, frame, state;
 let levelIndex = 0, level, timeLeft = 0, lastSecond = -1, runStart = 0;
 let shake = 0, msg = null, msgT = 0, msgColor = "#e9e4d6", scares = 0, nearItem = null;
-let houseScares = 0, entryT = 0, closeStats = null, uiScale = 1;
+let houseScares = 0, entryT = 0, closeStats = null, uiScale = 1, padOverlay = false;
 
 /* best times survive a reload where storage is allowed, and shrug where it is not */
 function bestFor(i){
@@ -637,6 +678,11 @@ function moveY(e){
 /* ---------- input ---------- */
 const keys = {};
 const pressed = {};
+function setDeck(on){
+  const d = document.getElementById("touch");
+  if (d && isTouch) d.classList.toggle("on", on);
+}
+
 function clockIn(){
   SND.start();
   if (state === "title"){
@@ -672,9 +718,22 @@ function bindPad(id, key){
   el.addEventListener("pointercancel", up);
   el.addEventListener("pointerleave", up);
 }
-if (matchMedia("(pointer:coarse)").matches){
-  document.getElementById("touch").classList.add("on");
+const isTouch = matchMedia("(pointer:coarse)").matches;
+if (isTouch){
   bindPad("tl","a"); bindPad("tr","d"); bindPad("tj","w"); bindPad("tg","e"); bindPad("tp","p");
+  /* a tap anywhere on the overlays advances them, so no pad is needed there */
+  for (const id of ["title","win","lost","pause"]){
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (state === "paused") togglePause();
+      else { pressed[" "] = true; pressed["r"] = true; clockIn(); }
+    });
+  }
+  const cv2 = document.getElementById("c");
+  cv2.addEventListener("pointerdown", e => {
+    if (state === "map" || state === "closed"){ e.preventDefault(); pressed[" "] = true; }
+  });
 }
 
 const left  = () => keys["a"] || keys["arrowleft"];
@@ -1182,16 +1241,18 @@ function drawHUD(){
   /* what you are carrying */
   ctx.textAlign = "left";
   const footH = 30*u;
+  /* clear the thumb pads when they are floating over the canvas */
+  const footY = padOverlay ? H - footH - 88 : H - footH;
   if (player.item){
     const d = ITEM_DEFS[player.item.id];
     const head = "CARRYING " + d.label + "  \u2022  " + d.weight;
-    ctx.fillStyle = "rgba(8,10,16,.8)"; ctx.fillRect(0, H-footH, W, footH);
-    ctx.fillStyle = "#ffc65c"; ctx.fillText(head, 10, H-footH*0.36);
+    ctx.fillStyle = "rgba(8,10,16,.8)"; ctx.fillRect(0, footY, W, footH);
+    ctx.fillStyle = "#ffc65c"; ctx.fillText(head, 10, footY + footH*0.64);
     ctx.fillStyle = "rgba(233,228,214,.6)";
-    if (u > 1) ctx.fillText(d.trait, 10, H-footH*0.36 + 15*u);
-    else ctx.fillText(d.trait, 10 + ctx.measureText(head).width + 22, H-11);
+    if (u > 1) ctx.fillText(d.trait, 10, footY + footH*0.64 + 15*u);
+    else ctx.fillText(d.trait, 10 + ctx.measureText(head).width + 22, footY + footH*0.64);
   }
-  else if (u === 1){
+  else if (u === 1 && !isTouch){
     ctx.fillStyle = "rgba(233,228,214,.35)";
     ctx.fillText("E LIFT   \u2022   R RESTART HOUSE   \u2022   P PAUSE", 10, H-11);
   }
@@ -1311,8 +1372,9 @@ function drawClosed(){
   ctx.textAlign = "center";
   ctx.font = "12px 'Courier New', monospace";
   ctx.fillStyle = Math.floor(frame/24)%2 ? "#ffc65c" : "rgba(255,198,92,.35)";
-  ctx.fillText(levelIndex < LEVELS.length - 1 ? "PRESS SPACE FOR THE NEXT ADDRESS"
-                                              : "PRESS SPACE TO SIGN OUT", W/2, 552);
+  const verb = isTouch ? "TAP" : "PRESS SPACE";
+  ctx.fillText(levelIndex < LEVELS.length - 1 ? verb + " FOR THE NEXT ADDRESS"
+                                              : verb + " TO SIGN OUT", W/2, 552);
 }
 
 function drawMap(){
@@ -1420,10 +1482,11 @@ function drawMap(){
   ctx.textAlign = "center";
   ctx.fillStyle = Math.floor(frame/24)%2 ? "#ffc65c" : "rgba(255,198,92,.35)";
   ctx.font = "12px 'Courier New', monospace";
-  ctx.fillText("PRESS SPACE TO KNOCK", W/2, 578);
+  ctx.fillText(isTouch ? "TAP TO KNOCK" : "PRESS SPACE TO KNOCK", W/2, 578);
 }
 
 function render(){
+  setDeck(state === "play");
   if (state === "map"){ drawMap(); return; }
   if (state === "closed"){ drawClosed(); return; }
   ctx.save();
@@ -1581,6 +1644,8 @@ function measureUi(){
   const wrap = document.getElementById("wrap");
   const cssW = wrap ? wrap.clientWidth : W;
   uiScale = cssW > 0 && cssW < 620 ? 1.8 : 1;
+  /* landscape phone: pads sit over the canvas, so lift the footer clear */
+  padOverlay = isTouch && matchMedia("(orientation:landscape) and (max-height:520px)").matches;
 }
 addEventListener("resize", measureUi);
 addEventListener("orientationchange", measureUi);
