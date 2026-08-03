@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mycelium &mdash; McMurray Games</title>
+<meta name="description" content="Mycelium: a heavy Euro about fungal colonies competing beneath the forest floor. 2 to 4 players, 90 to 130 minutes, age 14+.">
+
+<meta property="og:title" content="Mycelium &mdash; McMurray Games">
+<meta property="og:description" content="From rot, an empire. A heavy Euro about fungal colonies competing beneath the forest floor.">
+<meta property="og:type" content="product">
+<meta property="og:url" content="https://mcmurraygames.com/games/mycelium.html">
+<meta property="og:image" content="https://mcmurraygames.com/art/mycelium-large.jpg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Karla:wght@400;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --felt-deep:#123B29;
+  --felt-mid:#1A5238;
+  --rail:#40281A;
+  --rail-hi:#5C3B27;
+  --stock:#F1E8D5;
+  --ink:#17130E;
+  --brass:#C79A3E;
+
+  --display:"Bricolage Grotesque",system-ui,sans-serif;
+  --body:"Karla",system-ui,sans-serif;
+  --util:"Space Mono",ui-monospace,monospace;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+
+body{
+  margin:0;
+  font-family:var(--body);
+  color:var(--stock);
+  background-color:var(--felt-deep);
+  background-image:
+    radial-gradient(ellipse at 50% 0%, var(--felt-mid) 0%, var(--felt-deep) 62%),
+    repeating-linear-gradient(45deg, rgba(0,0,0,.05) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px);
+  background-attachment:fixed;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+
+.wrap{width:min(1080px,92vw);margin-inline:auto;}
+
+/* ---- table rail ---- */
+.rail{
+  background:linear-gradient(180deg,var(--rail-hi),var(--rail));
+  border-bottom:2px solid var(--brass);
+  box-shadow:0 6px 24px rgba(0,0,0,.45);
+  position:sticky;top:0;z-index:20;
+}
+.rail .wrap{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:1rem;padding:.85rem 0;flex-wrap:wrap;
+}
+.wordmark{
+  font-family:var(--display);font-weight:800;font-size:1.15rem;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--stock);
+  text-decoration:none;
+}
+.rail nav{display:flex;gap:1.4rem;}
+.rail nav a{
+  font-family:var(--util);font-size:.72rem;letter-spacing:.12em;
+  text-transform:uppercase;color:#E4D6B8;text-decoration:none;
+  padding-bottom:2px;border-bottom:1px solid transparent;
+}
+.rail nav a:hover,.rail nav a:focus-visible{border-bottom-color:var(--brass);color:#fff;}
+
+/* ---- breadcrumb ---- */
+.crumb{
+  font-family:var(--util);font-size:.7rem;letter-spacing:.14em;
+  text-transform:uppercase;color:#9DAE9F;padding-top:1.8rem;
+}
+.crumb a{color:var(--brass);text-decoration:none;}
+.crumb a:hover,.crumb a:focus-visible{text-decoration:underline;}
+
+/* ---- product layout ---- */
+.product{
+  display:grid;
+  grid-template-columns:minmax(280px,1fr) minmax(300px,1.05fr);
+  gap:clamp(2rem,5vw,3.6rem);
+  align-items:start;
+  padding:clamp(1.6rem,4vw,2.8rem) 0 clamp(2.5rem,6vw,4rem);
+}
+@media (max-width:760px){ .product{grid-template-columns:1fr;} }
+
+/* box shots */
+.shots{display:flex;flex-direction:column;gap:1.1rem;}
+.shot{
+  display:block;width:100%;border-radius:10px;
+  box-shadow:0 16px 34px rgba(0,0,0,.5);
+  background:#0d1512;
+}
+.shot.back{opacity:.94;}
+.shotlabel{
+  font-family:var(--util);font-size:.62rem;letter-spacing:.18em;
+  text-transform:uppercase;color:#9DAE9F;margin:.15rem 0 0;
+}
+
+/* copy column */
+.eyebrow{
+  font-family:var(--util);font-size:.7rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--brass);margin:0 0 .9rem;
+}
+h1{
+  font-family:var(--display);font-weight:800;
+  font-size:clamp(2.2rem,5.5vw,3.4rem);line-height:1.03;
+  letter-spacing:-.02em;margin:0 0 .5rem;
+}
+.tagline{
+  font-family:var(--display);font-weight:600;
+  font-size:clamp(1.05rem,2.2vw,1.3rem);
+  color:var(--brass);margin:0 0 1.6rem;
+}
+.product p{color:#DCD2BC;margin:0 0 1.1rem;}
+
+.specs{
+  display:flex;flex-wrap:wrap;gap:.5rem .9rem;
+  font-family:var(--util);font-size:.72rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--stock);
+  border-block:1px solid rgba(199,154,62,.3);
+  padding:.85rem 0;margin:1.6rem 0;
+}
+.specs span:not(:last-child)::after{content:" \00b7";color:var(--brass);margin-left:.9rem;}
+
+.bullets{list-style:none;padding:0;margin:0 0 1.8rem;}
+.bullets li{
+  position:relative;padding-left:1.5rem;margin-bottom:.6rem;
+  color:#DCD2BC;font-size:.97rem;
+}
+.bullets li::before{
+  content:"";position:absolute;left:0;top:.62em;
+  width:8px;height:8px;border-radius:50%;
+  background:var(--brass);
+}
+
+.contents{
+  font-family:var(--util);font-size:.76rem;line-height:1.9;
+  color:#C6BCA6;letter-spacing:.04em;
+}
+.contents strong{
+  display:block;color:var(--brass);font-size:.66rem;
+  letter-spacing:.18em;text-transform:uppercase;margin-bottom:.4rem;
+}
+
+/* ---- status panel ---- */
+.status{
+  border:1px solid var(--brass);border-radius:5px;
+  background:rgba(199,154,62,.09);
+  padding:1.3rem 1.4rem;margin-top:2rem;
+}
+.status .flag{
+  font-family:var(--util);font-size:.66rem;font-weight:700;
+  letter-spacing:.22em;text-transform:uppercase;color:var(--brass);
+  display:block;margin-bottom:.5rem;
+}
+.status h2{
+  font-family:var(--display);font-weight:600;font-size:1.25rem;
+  margin:0 0 .5rem;color:var(--stock);
+}
+.status p{font-size:.92rem;color:#D5CBB5;margin:0 0 1rem;}
+.status p:last-child{margin-bottom:0;}
+.status a{color:var(--brass);}
+
+footer{padding:2.6rem 0 3.4rem;border-top:1px solid rgba(199,154,62,.25);}
+footer .wrap{display:flex;justify-content:space-between;gap:1.2rem;flex-wrap:wrap;align-items:center;}
+footer p{font-family:var(--util);font-size:.7rem;letter-spacing:.1em;color:#9DAE9F;margin:0;text-transform:uppercase;}
+footer nav{display:flex;gap:1.3rem;}
+footer nav a{font-family:var(--util);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#C6BCA6;text-decoration:none;}
+footer nav a:hover,footer nav a:focus-visible{color:var(--brass);}
+
+a:focus-visible{outline:2px solid var(--brass);outline-offset:4px;}
+@media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto;} *{transition:none !important;} }
+</style>
+</head>
+<body>
+
+<header class="rail">
+  <div class="wrap">
+    <a class="wordmark" href="/">McMurray Games</a>
+    <nav>
+      <a href="/#play">Play</a>
+      <a href="/#tabletop">Tabletop</a>
+      <a href="/#studio">Studio</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap crumb">
+  <a href="/#tabletop">&larr; On the table</a>
+</div>
+
+<div class="wrap product">
+
+  <div class="shots">
+    <img class="shot" src="/art/mycelium-large.jpg" width="900" height="900"
+         alt="Mycelium box front: a pale fungal network spreading across a dark forest floor.">
+    <img class="shot back" src="/art/mycelium-back-large.jpg" width="900" height="900" loading="lazy"
+         alt="Mycelium box back, listing the components and how the game plays.">
+    <p class="shotlabel">Box front and back</p>
+  </div>
+
+  <div>
+    <p class="eyebrow">Heavy Euro &middot; Hex tile placement</p>
+    <h1>Mycelium</h1>
+    <p class="tagline">From rot, an empire.</p>
+
+    <p>Beneath the forest floor, a silent empire spreads. You are a fungal colony. Thread your hyphae through the dark, break the dead into nutrients, and strike bargains with the trees above.</p>
+
+    <p>Reach too far and a hard winter starves your edges. Grow too slow and rivals seize the richest ground. Across two years, decompose, fruit, and rule the groves before the last season turns.</p>
+
+    <div class="specs">
+      <span>2&ndash;4 players</span>
+      <span>90&ndash;130 min</span>
+      <span>Age 14+</span>
+    </div>
+
+    <ul class="bullets">
+      <li>A living board that decays as you play</li>
+      <li>Bargain with trees, poison rivals, evolve to survive</li>
+      <li>A different forest every game, and winter always comes</li>
+    </ul>
+
+    <p class="contents">
+      <strong>In the box</strong>
+      ~40 substrate tiles &middot; 88 hyphae &middot; 24 fruiting bodies<br>
+      44 cards &middot; nutrient tokens &middot; season deck
+    </p>
+
+    <div class="status">
+      <span class="flag">Coming soon</span>
+      <h2>Not available yet</h2>
+      <p>Mycelium is finished and heading to print. It isn't for sale at the moment while I sort out production and shipping.</p>
+      <p>Want to know the day it goes up? Email <a href="mailto:contact@mcmurraygames.com?subject=Mycelium">contact@mcmurraygames.com</a> and I'll write to you when it's ready.</p>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>&copy; 2026 McMurray Games</p>
+    <nav>
+      <a href="/">Home</a>
+      <a href="mailto:contact@mcmurraygames.com">Email</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
