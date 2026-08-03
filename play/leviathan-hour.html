@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05060a">
 <title>LEVIATHAN HOUR</title>
 <meta name="description" content="A first person survival horror game. Six blocks. Five civilians. Eight minutes.">
 <style>
@@ -11,9 +15,17 @@
     margin: 0; padding: 0; height: 100%; background: #05060a; overflow: hidden;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     -webkit-font-smoothing: antialiased;
+    /* a phone must not scroll, zoom, or pop a selection while you play */
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
   }
   #wrap {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    box-sizing: border-box;
     background:
       radial-gradient(120% 90% at 50% 120%, #17110c 0%, #06070a 55%, #030407 100%);
   }
@@ -22,6 +34,8 @@
     box-shadow: 0 0 0 1px rgba(214,178,118,.10), 0 40px 120px rgba(0,0,0,.9);
     touch-action: none;
   }
+  /* the hint is desktop guidance; on a phone the controls are on screen */
+  @media (pointer: coarse) { #hint { display: none; } }
   #hint {
     position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
     font-size: 13px; letter-spacing: .14em; color: rgba(230,198,142,.62);
@@ -2510,14 +2524,22 @@ function updatePlayer(dt) {
   if (keys['s']) my -= 1;
   if (keys['a']) mx -= 1;
   if (keys['d']) mx += 1;
+  // the thumb stick is analogue, so it overrides rather than adds
+  let analog = 0;
+  if (touchMove.x || touchMove.y) {
+    mx = touchMove.x; my = touchMove.y;
+    analog = Math.min(1, Math.hypot(mx, my));
+  }
   const moving = mx || my;
 
-  P.crouch = !!keys['control'] || !!keys['c'];
+  P.crouch = !!keys['control'] || !!keys['c'] || touchCrouch;
   if (P.crouch) P.usedCrouch = true;
-  P.sprint = !!keys['shift'] && !P.crouch && P.stam > 2 && my > 0;
+  const wantRun = !!keys['shift'] || (touchSprint && analog > .55);
+  P.sprint = wantRun && !P.crouch && P.stam > 2 && (my > 0 || analog > .55);
 
   let sp = P.crouch ? TUNE.CROUCH : P.sprint ? TUNE.SPRINT : TUNE.WALK;
   if (P.hp < 35) sp *= .82;
+  if (analog > 0) sp *= clamp(analog / .85, .34, 1);
 
   if (P.sprint && moving) P.stam = Math.max(0, P.stam - TUNE.STAM_DRAIN * dt);
   else P.stam = Math.min(100, P.stam + TUNE.STAM_REGEN * dt * (P.crouch ? 1.5 : 1));
@@ -2557,7 +2579,7 @@ function updatePlayer(dt) {
   }
 
   // radio direction finding. Holding still is the price.
-  if (keys['t'] && !P.dead) {
+  if ((keys['t'] || keys['v'] || radioHeld) && !P.dead) {
     if (moving) { P.radio = 0; if (!P.radioWarn) { P.radioWarn = 1; say('HOLD STILL TO GET A BEARING.', 2, 'radio'); } }
     else {
       P.radioWarn = 0;
@@ -3056,7 +3078,7 @@ function drawHUD(g, W, H, s) {
 
   g.textAlign = 'right';
   chips.forEach((c, i) => {
-    const y = 32 * s + i * 21 * s;
+    const y = (touchUI ? 74 * s : 32 * s) + i * 21 * s;
     g.font = mono(13, s, true);
     const tw = g.measureText(c[0]).width;
     plate(g, W - 26 * s - tw - 10 * s, y - 10 * s, tw + 20 * s, 20 * s, .70);
@@ -3065,7 +3087,7 @@ function drawHUD(g, W, H, s) {
   });
 
   /* ---------- resources ---------- */
-  const bx = 26 * s, by = H - 92 * s;
+  const bx = 26 * s, by = touchUI ? 96 * s : H - 92 * s;
   const meter = (label, val, col, i) => {
     const y = by + i * 20 * s;
     g.font = mono(13, s, true); g.fillStyle = AMBER + '.8)'; g.textAlign = 'left';
@@ -3078,8 +3100,11 @@ function drawHUD(g, W, H, s) {
   meter('WIND', P.stam / 100, P.stam < 25 ? 'rgba(226,120,70,0.9)' : 'rgba(168,178,190,0.75)', 1);
   meter('LAMP', P.batt / 100, P.torch ? 'rgba(232,200,130,0.95)' : 'rgba(100,94,82,0.6)', 2);
 
-  g.font = mono(15, s, true); g.fillStyle = AMBER + '.9)';
-  g.fillText('FLARES ' + P.flares + '     DRESSINGS ' + P.bands, bx, H - 24 * s);
+  if (!touchUI) {
+    // on touch the counts live on the buttons themselves
+    g.font = mono(15, s, true); g.fillStyle = AMBER + '.9)';
+    g.fillText('FLARES ' + P.flares + '     DRESSINGS ' + P.bands, bx, H - 24 * s);
+  }
 
   /* ---------- footfall warning ---------- */
   let danger = null;
@@ -3162,8 +3187,9 @@ function drawHUD(g, W, H, s) {
   if (prompt) {
     g.textAlign = 'center'; g.font = mono(20, s, true);
     const tw = g.measureText(prompt).width;
-    plate(g, W / 2 - tw / 2 - 18 * s, H * .615 - 18 * s, tw + 36 * s, 36 * s, .84);
-    inkText(g, prompt, W / 2, H * .615, 'rgba(246,246,242,1)', 4 * s);
+    const py2 = touchUI ? H * .30 : H * .615;
+    plate(g, W / 2 - tw / 2 - 18 * s, py2 - 18 * s, tw + 36 * s, 36 * s, .84);
+    inkText(g, prompt, W / 2, py2, 'rgba(246,246,242,1)', 4 * s);
   }
 
   /* ---------- message channels ---------- */
@@ -3171,7 +3197,7 @@ function drawHUD(g, W, H, s) {
   msgs.forEach((mm, i) => {
     const ch = CHANNEL[mm.kind] || CHANNEL.obj;
     const a = clamp(mm.t / .8, 0, 1);
-    const y = H - 122 * s - i * 25 * s;
+    const y = (touchUI ? H * .46 : H - 122 * s) - i * 25 * s;
     g.font = mono(ch.size, s, ch.bold);
     const tw = g.measureText(mm.text).width;
     plate(g, W / 2 - tw / 2 - 14 * s, y - 13 * s, tw + 28 * s, 26 * s, .70 * a);
@@ -3245,7 +3271,7 @@ function drawPause(g, W, H) {
   g.font = mono(14, s); g.fillStyle = AMBER + '.7)';
   g.fillText('The grid is holding its breath. Nothing moves until you do.', W / 2, H * .44);
   g.font = mono(16, s, true); g.fillStyle = BONE + pulse(400, .35, .95) + ')';
-  g.fillText('CLICK TO RESUME', W / 2, H * .54);
+  g.fillText(TOUCH ? 'TAP TO RESUME' : 'CLICK TO RESUME', W / 2, H * .54);
   g.font = mono(12, s); g.fillStyle = AMBER + '.5)';
   g.fillText('H  CONTROLS          ESC  RELEASES THE MOUSE', W / 2, H * .62);
   if (showControls) drawControlCard(g, W, H, s);
@@ -3285,7 +3311,7 @@ function drawTitle(g, W, H) {
 
   /* ---- difficulty, in its own band with nothing else in it ---- */
   g.font = mono(11, s); g.fillStyle = AMBER + '.4)';
-  g.fillText('CHOOSE YOUR NIGHT  \u00b7  PRESS 1 OR 2, OR CLICK', W / 2, H * .475);
+  g.fillText(TOUCH ? 'CHOOSE YOUR NIGHT  \u00b7  TAP ONE' : 'CHOOSE YOUR NIGHT  \u00b7  PRESS 1 OR 2, OR CLICK', W / 2, H * .475);
 
   titleButtons = [];
   const opts = [DIFFS.recruit, DIFFS.veteran];
@@ -3322,9 +3348,9 @@ function drawTitle(g, W, H) {
   g.fillText('SELECTED:  ' + DIF.label, W / 2, y0 + bh + 22 * s);
 
   g.font = mono(17, s, true);
-  inkText(g, 'CLICK THE FRAME TO BEGIN', W / 2, H * .845, BONE + pulse(400, .4, .98) + ')');
+  inkText(g, (TOUCH ? 'TAP TO BEGIN' : 'CLICK THE FRAME TO BEGIN'), W / 2, H * .845, BONE + pulse(400, .4, .98) + ')');
   g.font = mono(11, s); g.fillStyle = AMBER + '.45)';
-  g.fillText('H  CONTROLS      J  AWARDS ' + awardCount() + '/' + ACHIEVEMENTS.length + '      M  REDUCED MOTION' + (REDUCED_MOTION ? ' (ON)' : ''), W / 2, H * .905);
+  g.fillText((TOUCH ? 'AWARDS ' : 'H  CONTROLS      J  AWARDS ') + awardCount() + '/' + ACHIEVEMENTS.length + (TOUCH ? '' : '      M  REDUCED MOTION' + (REDUCED_MOTION ? ' (ON)' : '')), W / 2, H * .905);
   if (showControls) drawControlCard(g, W, H, s);
 }
 
@@ -3434,7 +3460,7 @@ function drawEnd(g, W, H) {
   }
 
   g.font = mono(17, s, true);
-  inkText(g, 'R  OR CLICK  \u00b7  RUN IT AGAIN', W / 2, H * .955, BONE + pulse(400, .45, .98) + ')');
+  inkText(g, TOUCH ? 'TAP  \u00b7  RUN IT AGAIN' : 'R  OR CLICK  \u00b7  RUN IT AGAIN', W / 2, H * .955, BONE + pulse(400, .45, .98) + ')');
 }
 
 
@@ -3611,6 +3637,231 @@ function drawAwardPanel(g, W, H) {
 
 
 /* ============================================================
+   Touch. A left thumb for walking, a right thumb for looking,
+   and the verbs as buttons where a thumb can actually reach.
+   ============================================================ */
+
+let TOUCH = false;            // device reports touch
+let touchUI = false;          // draw and accept the on-screen controls
+let stick = null;             // { id, ox, oy, x, y }
+let lookTouch = null;         // { id, x, y }
+let touchMove = { x: 0, y: 0 };
+let touchSprint = false, touchCrouch = false;
+let btnFlash = {};
+
+/* A 16:9 canvas inside a portrait phone is a letterbox strip: the buttons
+   end up around 23px, well under the ~44px a thumb needs. Ask for landscape
+   rather than shipping controls nobody can hit. */
+let portraitBlock = false;
+
+function checkOrientation() {
+  if (!TOUCH) { portraitBlock = false; return false; }
+  const w = window.innerWidth || 0, h = window.innerHeight || 0;
+  portraitBlock = (h > w * 1.08);
+  return portraitBlock;
+}
+
+function drawRotateNotice(g, W, H) {
+  const s = Math.min(W / 960, H / 540);
+  g.fillStyle = 'rgba(3,4,7,0.96)'; g.fillRect(0, 0, W, H);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+
+  // a phone turning on its side
+  const cx = W / 2, cy = H * .40, u = Math.min(W, H) * .10;
+  g.save();
+  g.translate(cx, cy);
+  g.rotate(Math.sin(performance.now() / 700) * .38 - .38);
+  g.strokeStyle = 'rgba(226,192,132,0.85)';
+  g.lineWidth = Math.max(2, 3 * s);
+  g.beginPath();
+  const rw = u * .62, rh = u * 1.15, rr = u * .16;
+  g.moveTo(-rw + rr, -rh);
+  g.arcTo(rw, -rh, rw, -rh + rr, rr);
+  g.arcTo(rw, rh, rw - rr, rh, rr);
+  g.arcTo(-rw, rh, -rw, rh - rr, rr);
+  g.arcTo(-rw, -rh, -rw + rr, -rh, rr);
+  g.closePath(); g.stroke();
+  g.restore();
+
+  g.fillStyle = 'rgba(226,226,220,0.95)';
+  g.font = 'bold ' + Math.round(22 * s) + 'px ' + SLAB;
+  g.fillText('TURN YOUR PHONE SIDEWAYS', cx, H * .66);
+  g.font = mono(12, s);
+  g.fillStyle = AMBER + '.65)';
+  g.fillText('The grid is wider than it is tall.', cx, H * .74);
+}
+
+function detectTouch() {
+  try {
+    TOUCH = ('ontouchstart' in window) ||
+      (navigator.maxTouchPoints > 0) ||
+      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  } catch (e) { TOUCH = false; }
+  touchUI = TOUCH;
+  return TOUCH;
+}
+
+/* ---------- layout ----------
+   Everything is derived from the canvas size so it lands in the same
+   place on a phone, a tablet, and a desktop window. */
+function touchLayout(W, H) {
+  const u = Math.min(W, H);
+  const r = u * .115;                 // action button radius
+  const pad = u * .055;
+  const bx = W - pad - r;             // right column x
+  const by = H - pad - r;             // bottom row y
+  const gap = r * 2.28;
+
+  return {
+    stickR: u * .17,
+    stickZone: { x: 0, y: H * .34, w: W * .42, h: H * .66 },
+    r,
+    buttons: [
+      // primary, closest to the thumb
+      { id: 'swing', label: 'SWING', x: bx, y: by, r: r * 1.24, tone: 'hot' },
+      { id: 'use', label: 'USE', x: bx - gap, y: by, r: r, tone: 'good' },
+      { id: 'crouch', label: 'CROUCH', x: bx, y: by - gap, r: r, tone: 'cool', toggle: true },
+      { id: 'flare', label: 'FLARE', x: bx - gap, y: by - gap, r: r * .86, tone: 'warm' },
+      { id: 'lamp', label: 'LAMP', x: bx - gap * 1.72, y: by - gap * .52, r: r * .86, tone: 'warm' },
+      { id: 'wrap', label: 'WRAP', x: bx, y: by - gap * 2, r: r * .86, tone: 'warm' },
+      { id: 'radio', label: 'RADIO', x: bx - gap * .86, y: by - gap * 2.14, r: r * .86, tone: 'cool' },
+      // run is a big flat pad above the stick, easy to hit with the left thumb
+      { id: 'run', label: 'RUN', x: pad + r * 1.1, y: H * .30, r: r * .92, tone: 'warm', toggle: true },
+      // small, out of the way, but reachable
+      { id: 'pause', label: 'II', x: W - pad - r * .5, y: pad + r * .5, r: r * .52, tone: 'cool' }
+    ]
+  };
+}
+
+const TONES = {
+  hot: ['rgba(226,96,64,', 'rgba(255,140,110,'],
+  good: ['rgba(150,200,170,', 'rgba(190,232,206,'],
+  warm: ['rgba(226,192,132,', 'rgba(248,220,168,'],
+  cool: ['rgba(160,192,216,', 'rgba(198,224,244,']
+};
+
+function buttonAt(L, px, py) {
+  for (const b of L.buttons) {
+    const rr = b.r * 1.16;            // a little forgiveness
+    if ((px - b.x) ** 2 + (py - b.y) ** 2 <= rr * rr) return b;
+  }
+  return null;
+}
+
+function inStickZone(L, px, py) {
+  const z = L.stickZone;
+  return px >= z.x && px <= z.x + z.w && py >= z.y && py <= z.y + z.h;
+}
+
+/* ---------- the verbs ---------- */
+function pressButton(id) {
+  btnFlash[id] = 1;
+  switch (id) {
+    case 'swing':
+      if (P.swing < 0 && !ending && !paused) { P.swing = 0; P.swingHit = false; sfxSwing(); }
+      break;
+    case 'use': interact(); break;
+    case 'flare': useFlare(); break;
+    case 'wrap': useBandage(); break;
+    case 'lamp':
+      if (P.batt > 0) { P.torch = !P.torch; say(P.torch ? 'LAMP ON. THEY CAN SEE IT.' : 'LAMP OFF. HARDER TO FIND YOU.', 2.5, 'item'); }
+      else say('THE CELL IS FLAT.', 2.5, 'warn');
+      break;
+    case 'crouch': touchCrouch = !touchCrouch; break;
+    case 'run': touchSprint = !touchSprint; break;
+    case 'pause': setPaused(true); break;
+    case 'radio': break;              // held, handled by the touch layer
+  }
+}
+
+/* radio needs a hold, so track it separately */
+let radioHeld = false;
+
+function updateTouchFlash(dt) {
+  for (const k in btnFlash) {
+    btnFlash[k] -= dt * 3.5;
+    if (btnFlash[k] <= 0) delete btnFlash[k];
+  }
+}
+
+/* ---------- drawing ---------- */
+function drawTouchControls(g, W, H) {
+  if (!touchUI || !inGame || ending) return;
+  const L = touchLayout(W, H);
+  const s = Math.min(W / 960, H / 540);
+
+  // stick
+  if (stick) {
+    g.save();
+    g.strokeStyle = 'rgba(226,192,132,0.20)';
+    g.lineWidth = 2 * s;
+    g.beginPath(); g.arc(stick.ox, stick.oy, L.stickR, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(6,7,10,0.34)';
+    g.beginPath(); g.arc(stick.ox, stick.oy, L.stickR, 0, Math.PI * 2); g.fill();
+    const dx = stick.x - stick.ox, dy = stick.y - stick.oy;
+    const d = Math.hypot(dx, dy) || 1;
+    const k = Math.min(1, d / L.stickR);
+    const hx = stick.ox + dx / d * L.stickR * k;
+    const hy = stick.oy + dy / d * L.stickR * k;
+    g.fillStyle = 'rgba(236,206,152,0.72)';
+    g.beginPath(); g.arc(hx, hy, L.stickR * .38, 0, Math.PI * 2); g.fill();
+    g.restore();
+  } else {
+    // a resting hint so the zone is discoverable
+    const z = L.stickZone;
+    const cx = z.x + z.w * .42, cy = z.y + z.h * .62;
+    g.save();
+    g.globalAlpha = .30;
+    g.strokeStyle = 'rgba(226,192,132,0.5)'; g.lineWidth = 2 * s;
+    g.beginPath(); g.arc(cx, cy, L.stickR * .72, 0, Math.PI * 2); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = mono(11, s, true); g.fillStyle = 'rgba(226,192,132,0.7)';
+    g.fillText('MOVE', cx, cy);
+    g.restore();
+  }
+
+  // buttons
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const b of L.buttons) {
+    const on = (b.id === 'crouch' && touchCrouch) || (b.id === 'run' && touchSprint) ||
+      (b.id === 'radio' && radioHeld) || (b.id === 'lamp' && P.torch);
+    const flash = btnFlash[b.id] || 0;
+    const tone = TONES[b.tone] || TONES.warm;
+
+    let dim = 1;
+    if (b.id === 'flare' && P.flares <= 0) dim = .34;
+    if (b.id === 'wrap' && P.bands <= 0) dim = .34;
+    if (b.id === 'run' && P.stam < 6) dim = .45;
+
+    g.fillStyle = 'rgba(6,7,10,' + (on ? .74 : .52) + ')';
+    g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
+
+    g.lineWidth = (on ? 2.6 : 1.6) * s;
+    g.strokeStyle = tone[on ? 1 : 0] + (on ? .95 : .42 * dim) + ')';
+    g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.stroke();
+
+    if (flash > 0) {
+      g.fillStyle = tone[1] + (flash * .30) + ')';
+      g.beginPath(); g.arc(b.x, b.y, b.r, 0, Math.PI * 2); g.fill();
+    }
+
+    const px = Math.max(9, Math.round(b.r * .30));
+    g.font = 'bold ' + px + 'px ' + MONO_FAM;
+    g.fillStyle = tone[on ? 1 : 0] + (on ? 1 : .82 * dim) + ')';
+    g.fillText(b.label, b.x, b.y);
+
+    // counts on the consumables
+    if (b.id === 'flare' || b.id === 'wrap') {
+      const n = b.id === 'flare' ? P.flares : P.bands;
+      g.font = 'bold ' + Math.max(8, Math.round(b.r * .26)) + 'px ' + MONO_FAM;
+      g.fillStyle = tone[0] + (.9 * dim) + ')';
+      g.fillText(String(n), b.x, b.y + b.r * .52);
+    }
+  }
+}
+
+
+/* ============================================================
    Boot, input, and the pause state.
    ============================================================ */
 
@@ -3620,6 +3871,7 @@ let lockMode = true;        // false once we learn pointer lock is unavailable
 let lockPending = 0;        // when a lock request is in flight
 let clickGuard = 0;         // swallow the click that starts or resumes play
 let lastClick = null;
+let radioTouchId = -1;
 
 function resize() {
   const wrap = document.getElementById('wrap');
@@ -3630,8 +3882,9 @@ function resize() {
   if (ch > h) { ch = h; cw = h * target; }
   canvas.style.width = cw + 'px';
   canvas.style.height = ch + 'px';
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const px = Math.max(320, Math.min(1600, Math.round(cw * dpr)));
+  const dpr = Math.min(window.devicePixelRatio || 1, TOUCH ? 1.5 : 2);
+  const cap = TOUCH ? 1000 : 1600;
+  const px = Math.max(320, Math.min(cap, Math.round(cw * dpr)));
   canvas.width = px;
   canvas.height = Math.max(180, Math.round(px / target));
 }
@@ -3679,9 +3932,12 @@ function boot() {
     }
   } catch (e) { REDUCED_MOTION = false; }
 
+  detectTouch();
+  if (TOUCH) lockMode = false;      // no pointer lock on a phone
   resize();
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', resize);
+  checkOrientation();
+  window.addEventListener('resize', () => { checkOrientation(); resize(); });
+  window.addEventListener('orientationchange', () => { checkOrientation(); resize(); });
 
   /* ---------- keyboard ---------- */
   document.addEventListener('keydown', e => {
@@ -3743,6 +3999,7 @@ function boot() {
   /* Swinging is on mousedown, but only when play is actually live and the
      click was not the one that started, resumed, or captured the mouse. */
   canvas.addEventListener('mousedown', e => {
+    if (TOUCH) return;
     if (e.button !== 0) return;
     if (!inGame || ending || paused || showControls) return;
     if (performance.now() < clickGuard) return;
@@ -3773,6 +4030,90 @@ function boot() {
     if (lockMode && !locked()) { clickGuard = performance.now() + 220; lock(); }
   });
 
+  /* ---------- touch ----------
+     A tap is not a click here. The left thumb walks, the right thumb
+     looks, and every verb has a button, so nothing is triggered by
+     simply touching the world. */
+  const canvasPt = (t) => {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return { x: 0, y: 0 };
+    return {
+      x: (t.clientX - r.left) * (canvas.width / r.width),
+      y: (t.clientY - r.top) * (canvas.height / r.height)
+    };
+  };
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    resumeAudio();
+    if (portraitBlock) { goFullscreen(); return; }
+    const W = canvas.width, H = canvas.height;
+
+    for (const t of e.changedTouches) {
+      const p = canvasPt(t);
+
+      // menus and screens first
+      if (showAwards) { showAwards = false; continue; }
+      if (showControls) { showControls = false; continue; }
+      if (atTitle) {
+        const hit = titleHit(p.x, p.y);
+        if (hit) { DIF = DIFFS[hit]; continue; }
+        goFullscreen();
+        atTitle = false; newRun(); inGame = true;
+        continue;
+      }
+      if (ending) { restart(); continue; }
+      if (paused) { setPaused(false); continue; }
+
+      const L = touchLayout(W, H);
+      const b = buttonAt(L, p.x, p.y);
+      if (b) {
+        if (b.id === 'radio') { radioHeld = true; btnFlash.radio = 1; radioTouchId = t.identifier; }
+        else pressButton(b.id);
+        continue;
+      }
+      if (!stick && inStickZone(L, p.x, p.y)) {
+        stick = { id: t.identifier, ox: p.x, oy: p.y, x: p.x, y: p.y };
+        continue;
+      }
+      if (!lookTouch) lookTouch = { id: t.identifier, x: p.x, y: p.y };
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const W = canvas.width, H = canvas.height;
+    const L = touchLayout(W, H);
+    for (const t of e.changedTouches) {
+      const p = canvasPt(t);
+      if (stick && t.identifier === stick.id) {
+        stick.x = p.x; stick.y = p.y;
+        let dx = stick.x - stick.ox, dy = stick.y - stick.oy;
+        const d = Math.hypot(dx, dy);
+        if (d > L.stickR) { dx = dx / d * L.stickR; dy = dy / d * L.stickR; }
+        // screen down is forward
+        touchMove.x = dx / L.stickR;
+        touchMove.y = -dy / L.stickR;
+      } else if (lookTouch && t.identifier === lookTouch.id) {
+        const sens = 3.1 / canvas.width;
+        P.ang += (p.x - lookTouch.x) * sens;
+        P.pitch = clamp(P.pitch - (p.y - lookTouch.y) * sens * 1.15, -PITCH_MAX, PITCH_MAX);
+        lookTouch.x = p.x; lookTouch.y = p.y;
+      }
+    }
+  }, { passive: false });
+
+  const endTouch = e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (stick && t.identifier === stick.id) { stick = null; touchMove.x = 0; touchMove.y = 0; }
+      if (lookTouch && t.identifier === lookTouch.id) lookTouch = null;
+      if (radioHeld && t.identifier === radioTouchId) { radioHeld = false; radioTouchId = -1; }
+    }
+  };
+  canvas.addEventListener('touchend', endTouch, { passive: false });
+  canvas.addEventListener('touchcancel', endTouch, { passive: false });
+
   document.addEventListener('pointerlockchange', () => {
     if (locked()) { lockPending = 0; return; }
     for (const k in keys) keys[k] = false;
@@ -3791,8 +4132,30 @@ function boot() {
   requestAnimationFrame(frame);
 }
 
+/* Best effort: phones give far more usable screen in fullscreen landscape,
+   but every one of these calls can be refused and the game must not care. */
+function goFullscreen() {
+  if (!TOUCH) return;
+  try {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req && !document.fullscreenElement) {
+      const r = req.call(el);
+      if (r && r.catch) r.catch(() => { });
+    }
+  } catch (e) { /* refused */ }
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      const r = screen.orientation.lock('landscape');
+      if (r && r.catch) r.catch(() => { });
+    }
+  } catch (e) { /* refused */ }
+}
+
 function restart() {
   newRun();
+  stick = null; lookTouch = null; touchMove.x = 0; touchMove.y = 0;
+  touchCrouch = false; touchSprint = false; radioHeld = false;
   inGame = true; paused = false; showControls = false;
   clickGuard = performance.now() + 260;
   resumeAudio();
@@ -3822,6 +4185,12 @@ function frame(t) {
 
   const W = canvas.width, H = canvas.height;
   if (!W || !H) return;
+
+  if (portraitBlock) {
+    if (inGame && !ending) paused = true;
+    drawRotateNotice(vctx, W, H);
+    return;
+  }
 
   if (atTitle) {
     if (!started) {
@@ -3861,6 +4230,8 @@ function frame(t) {
   renderWorld(camera());
   present();
   drawOverlay(vctx, W, H, paused ? 0 : dt);
+  updateTouchFlash(dt);
+  drawTouchControls(vctx, W, H);
 
   if (ending) {
     if (locked()) document.exitPointerLock();
