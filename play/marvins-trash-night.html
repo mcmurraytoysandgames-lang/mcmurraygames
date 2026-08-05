@@ -18,6 +18,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--shell);color:var
 #app{position:fixed;inset:0;max-width:520px;margin:0 auto;display:flex;flex-direction:column;
   padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 
+/* Landscape: the map takes the height it can get and the chrome moves beside it,
+   so a desktop window is not a narrow portrait strip in a black field. */
+
 #hud{flex:0 0 auto;padding:8px 12px 6px;display:flex;flex-direction:column;gap:6px}
 .row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .lbl{font-size:9px;letter-spacing:.18em;color:var(--dim)}
@@ -39,6 +42,7 @@ canvas{display:block;background:#0a0d11;box-shadow:0 0 0 1px #1d222a,0 8px 30px 
   background:#151a21;border:1px solid #2a323d;color:#b6ae99;font:inherit;font-size:10px;
   letter-spacing:.12em;padding:5px 9px;cursor:pointer}
 #sound[data-off="1"]{color:#5d5749}
+#sound:disabled{opacity:.55;cursor:default}
 #tricks{flex:0 0 auto;display:flex;gap:5px;padding:5px 8px 0;flex-wrap:wrap;justify-content:center}
 .trick{background:#151a21;border:1px solid #2a323d;color:var(--paper);font:inherit;font-size:9px;
   letter-spacing:.1em;padding:7px 9px;cursor:pointer;white-space:nowrap}
@@ -51,6 +55,9 @@ canvas{display:block;background:#0a0d11;box-shadow:0 0 0 1px #1d222a,0 8px 30px 
 .cb .nm{color:var(--paper);letter-spacing:.1em;min-width:96px}
 .cb .pg{color:var(--sodium)}
 .cb.locked .nm{color:#6a6455}
+#unlock{display:none;position:absolute;left:50%;top:12%;transform:translateX(-50%);z-index:8;
+  background:var(--sodium);color:#0b0d10;border:0;font:inherit;font-size:11px;letter-spacing:.16em;
+  padding:11px 16px;cursor:pointer;box-shadow:0 4px 18px #000a}
 #banner{position:absolute;left:0;right:0;top:44%;text-align:center;pointer-events:none;z-index:4;
   font-size:13px;letter-spacing:.14em;color:var(--paper);text-shadow:0 2px 12px #000,0 0 22px #000;
   opacity:0;transition:opacity .18s}
@@ -110,12 +117,49 @@ details#rules ul{margin-top:10px}
   letter-spacing:.16em;margin:0;color:var(--sodium);text-shadow:0 0 26px rgba(255,168,60,0.35)}
 .tstack .tag{font-size:11px;line-height:1.6;color:#8b8471;margin:2px 0 6px}
 .tstack .mark{font-size:9px;letter-spacing:.3em;color:#4e4a3d;margin:6px 0 0;text-align:center}
+button.ghost{background:none;border:1px solid #2a323d;color:#8b8471;font:inherit;font-size:10px;
+  letter-spacing:.2em;padding:10px;cursor:pointer}
 button.go{background:var(--paper);color:#07090c;border:0;padding:14px;font:inherit;font-size:13px;
   letter-spacing:.2em;cursor:pointer;margin-top:4px}
+
+
+/* ---------------------------------------------------------------
+   Layout is switched by a class that fit() sets from the measured
+   viewport, not by a media query. Two reasons: the class selectors
+   outrank the plain #id rules above no matter what order they sit
+   in, and JS measures the real frame instead of guessing at it.
+   --------------------------------------------------------------- */
+#side,#side2{display:flex;flex-direction:column;width:100%;flex:0 0 auto;min-width:0}
+
+#app.wide{max-width:none;flex-direction:row;align-items:stretch;
+  padding:env(safe-area-inset-top) 10px env(safe-area-inset-bottom)}
+#app.wide #side,#app.wide #side2{width:clamp(150px,20vw,300px);flex:0 0 auto;
+  justify-content:center;gap:8px}
+#app.wide #side2{justify-content:flex-start;padding-top:14px}
+#app.wide #wrap{flex:1 1 auto;min-width:0;min-height:0;padding:6px 10px}
+#app.wide #hud{padding:8px 4px;gap:5px}
+#app.wide #tricks{justify-content:flex-start;padding:0 4px;gap:4px}
+#app.wide #foot{text-align:left;padding:6px 4px 0;min-height:0;line-height:1.5}
+#app.wide #sound{right:auto;left:10px;top:auto;
+  bottom:calc(env(safe-area-inset-bottom) + 8px)}
+#app.wide .lbl{font-size:8px}
+#app.wide .mlbl{width:64px;font-size:7px}
+#app.wide .big{font-size:16px}
+#app.wide .val{font-size:11px}
+#app.wide .trick{font-size:8px;padding:6px 7px}
+#app.wide #block{width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#app.wide .sheet{align-items:center}
+#app.wide .sheet>*{width:100%;max-width:620px;margin-left:auto;margin-right:auto}
+
+#app.short #hud{padding:4px;gap:4px}
+#app.short #foot{display:none}
+#app.short .sheet{padding:14px 20px}
+#app.short .sheet h1{font-size:26px}
 </style>
 </head>
 <body>
 <div id="app">
+  <div id="side">
   <div id="hud">
     <div class="row"><span class="lbl" id="block">MARVIN · NIGHT 1 · MAPLE COURT</span><span class="lbl" id="clock">3 DARK / 3</span></div>
     <div class="row">
@@ -132,7 +176,11 @@ button.go{background:var(--paper);color:#07090c;border:0;padding:14px;font:inher
     </div>
     <div class="row"><span class="lbl" id="state">NOBODY IS LOOKING</span><span class="lbl" id="left">12 THINGS OUT THERE</span></div>
   </div>
+  </div>
   <div id="wrap"><canvas id="c"></canvas></div>
+  <div id="side2">
+  </div>
+  <button id="unlock">TAP TO TURN ON SOUND</button>
   <div id="flash"></div>
   <div id="banner"></div>
   <button id="sound">SOUND ON</button>
@@ -146,6 +194,7 @@ button.go{background:var(--paper);color:#07090c;border:0;padding:14px;font:inher
       <h1>TRASH NIGHT</h1>
       <p class="tag">One raccoon. Eight cul-de-sacs. Everything not nailed down.</p>
       <button class="go" id="enter">START THE NIGHT</button>
+      <button class="ghost" id="howto">HOW IT WORKS</button>
       <p class="mark">MCMURRAY GAMES</p>
     </div>
   </div>
@@ -180,7 +229,7 @@ button.go{background:var(--paper);color:#07090c;border:0;padding:14px;font:inher
     <div class="rule"></div>
     <div class="lbl">WHAT MARVIN HAS WORKED OUT</div>
     <div class="combos" id="combo1"></div>
-    <button class="go" id="start">PUT MARVIN TO WORK</button>
+    <button class="go" id="start">BACK</button>
   </div>
 
   <div class="sheet" id="over" style="display:none">
@@ -196,6 +245,8 @@ button.go{background:var(--paper);color:#07090c;border:0;padding:14px;font:inher
     <div class="rule"></div>
     <p id="overnote"></p>
     <p id="nextnote" style="color:#8b8471"></p>
+    <button class="go" id="recover" style="display:none;background:var(--sodium);color:#0b0d10">
+      WATCH AN AD TO KEEP THE REST</button>
     <div class="rule"></div>
     <div class="stashrow"><span class="lbl">STASH TO SPEND</span><b id="stash2">0</b></div>
     <div class="shop" id="shop2"></div>
@@ -207,8 +258,121 @@ button.go{background:var(--paper);color:#07090c;border:0;padding:14px;font:inher
   </div>
 </div>
 
+<!-- Self-hosted build: no portal SDK. -->
 <script>
 "use strict";
+
+/* ================= CrazyGames =================
+   Every call goes through here and every call is optional, so the same file
+   runs on the portal with the SDK and on a plain web host without it. */
+/* Ads are not allowed during Basic Launch. Flip this to true for the Full
+   Launch build; everything else about the SDK stays wired either way. */
+const ADS_ENABLED=false;
+
+const CG={ready:false,sdk:null,ads:true,lastAd:0,nights:0,muted:false};
+
+/* Three things can silence the game: the site's mute switch, the player's own
+   toggle, and an ad in progress. They all funnel through here, and the site's
+   switch outranks the player's toggle, which their docs require. */
+function applyAudio(){
+  if(!AU.ok) return;
+  AU.master.gain.value = (AU.on && !CG.muted && !AU.adMuted) ? 0.85 : 0;
+}
+CG.readSettings=function(){
+  let m=false;
+  try{ m=!!(CG.sdk&&CG.sdk.game&&CG.sdk.game.settings&&CG.sdk.game.settings.muteAudio); }catch(e){}
+  try{ if(new URLSearchParams(location.search).get("muteAudio")==="true") m=true; }catch(e){}
+  CG.muted=m; applyAudio(); paintSoundButton();
+};
+function paintSoundButton(){
+  const b=el("sound"); if(!b) return;
+  if(CG.muted){ b.textContent="MUTED BY SITE"; b.dataset.off="1"; b.disabled=true; return; }
+  b.disabled=false;
+  if(AU.ok && AU.ctx && AU.ctx.state!=="running"){
+    b.textContent="TAP FOR SOUND"; b.dataset.off="1"; return;   // the browser is holding it
+  }
+  b.dataset.off=AU.on?"0":"1"; b.textContent=AU.on?"SOUND ON":"SOUND OFF";
+}
+CG.api=()=>{ try{ return window.CrazyGames&&window.CrazyGames.SDK; }catch(e){ return null; } };
+/* The SDK tag is async so it never delays the first frame. Wait for it here
+   instead, and give up quietly if it never arrives. */
+CG.wait=function(ms){
+  return new Promise(res=>{
+    const t0=Date.now();
+    (function poll(){
+      if(CG.api()) return res(true);
+      if(Date.now()-t0>ms) return res(false);
+      setTimeout(poll,120);
+    })();
+  });
+};
+CG.init=async function(){
+  await CG.wait(0);
+  const sdk=CG.api(); if(!sdk) return;
+  CG.sdk=sdk;
+  try{ await sdk.init(); CG.ready=true; }catch(e){ CG.ready=false; }
+  /* The game is already playable by the time the SDK answers, so loading is
+     reported as the near-zero window it actually is. */
+  try{ sdk.game.loadingStart(); }catch(e){}
+  try{ CG.ads=!(await sdk.ad.hasAdblock()); }catch(e){}
+  CG.readSettings();
+  try{ sdk.game.addSettingsChangeListener(()=>CG.readSettings()); }catch(e){}
+  try{ sdk.game.loadingStop(); }catch(e){}
+  CG.pullSave();
+};
+CG.call=function(path){
+  if(!CG.ready||!CG.sdk) return;
+  try{ const f=path.split("."); let o=CG.sdk; for(const k of f.slice(0,-1)) o=o[k];
+       o[f[f.length-1]](); }catch(e){}
+};
+CG.gameplayStart=()=>CG.call("game.gameplayStart");
+CG.gameplayStop =()=>CG.call("game.gameplayStop");
+CG.happytime    =()=>CG.call("game.happytime");
+
+/* Ads must mute and pause the game, per their requirements. */
+function adPause(){ wasRunning=running; running=false; AU.adMuted=true; applyAudio(); }
+function adResume(){ running=wasRunning; AU.adMuted=false; applyAudio(); last=0; }
+let wasRunning=false;
+
+CG.midgame=function(done){
+  const t=Date.now();
+  if(!ADS_ENABLED||!CG.ready||!CG.ads||t-CG.lastAd<75000){ done&&done(); return; }
+  CG.lastAd=t;
+  let closed=false; const finish2=()=>{ if(closed)return; closed=true; adResume(); done&&done(); };
+  try{
+    adPause();
+    CG.sdk.ad.requestAd("midgame",{adStarted(){},adFinished:finish2,adError:finish2});
+    setTimeout(finish2,20000);            // never strand the player on a stuck ad
+  }catch(e){ finish2(); }
+};
+CG.rewarded=function(onReward,onFail){
+  if(!ADS_ENABLED||!CG.ready||!CG.ads){ onFail&&onFail(); return; }
+  let closed=false;
+  const ok=()=>{ if(closed)return; closed=true; adResume(); onReward&&onReward(); };
+  const no=()=>{ if(closed)return; closed=true; adResume(); onFail&&onFail(); };
+  try{
+    adPause();
+    CG.sdk.ad.requestAd("rewarded",{adStarted(){},adFinished:ok,adError:no});
+    setTimeout(no,30000);
+  }catch(e){ no(); }
+};
+
+/* Cloud saves when the portal offers them, browser storage otherwise. */
+CG.get=function(k){
+  if(CG.ready){ try{ const v=CG.sdk.data.getItem(k); if(v!=null) return v; }catch(e){} }
+  try{ return localStorage.getItem(k); }catch(e){ return null; }
+};
+CG.set=function(k,v){
+  if(CG.ready){ try{ CG.sdk.data.setItem(k,v); return; }catch(e){} }
+  try{ localStorage.setItem(k,v); }catch(e){}
+};
+CG.pullSave=function(){
+  const sv=loadSave(); if(!sv) return;
+  STASH=sv.STASH||0; Object.assign(UP,sv.UP||{}); Object.assign(TALLY,sv.TALLY||{});
+  if(Array.isArray(sv.BEST)) BEST=sv.BEST;
+  UNLOCKED=sv.UNLOCKED||0; LEVEL=clamp(sv.LEVEL||0,0,LEVELS.length-1);
+  renderShop(); renderCombos();
+};
 /* ================= world ================= */
 const WW=300, WH=520;                       // world units, portrait
 const CREEP=0.22;                           // stick fraction below which you are silent
@@ -227,6 +391,17 @@ let LEVEL=0, BEST=new Array(8).fill(0), UNLOCKED=0;
 
 /* Everything you get home is spendable. A night that ends badly still pays, so
    a block you cannot beat is a block you can afford to come back stronger to. */
+/* Saved when the browser allows it, silently skipped when it does not, so the
+   same file works hosted and inside a sandboxed preview. */
+const SAVE_KEY="marvins-trash-night-v1";
+function loadSave(){
+  try{ const raw=CG.get(SAVE_KEY); return raw?JSON.parse(raw):null; }
+  catch(e){ return null; }
+}
+function save(){
+  try{ CG.set(SAVE_KEY,JSON.stringify({STASH,UP,TALLY,BEST,UNLOCKED,LEVEL,ver:1})); }
+  catch(e){}
+}
 let STASH=0;
 const UP={paws:0,grip:0,eyes:0,pockets:0,nerve:0,drain:0};
 const SHOP=[
@@ -406,7 +581,18 @@ function newNight(level,seed){
        && S.reach[(cy-1)*RW+cx] && S.reach[(cy+1)*RW+cx]
        && dist(cx*RG,cy*RG,S.drain.x,S.drain.y)>80) open.push([cx*RG,cy*RG]);
   const spots=[];
-  for(let k=0;k<lv.loot;k++){
+  if(lv.n===1){                     // a first delivery inside the first few seconds
+    let best=null,bd=1e9;
+    for(const c of open){
+      const d=dist(c[0],c[1],S.drain.x,S.drain.y);
+      if(d<=82||d>=bd) continue;
+      let deep=0; for(const q of S.houses) deep=Math.max(deep,inCone(q,c[0],c[1]));
+      if(deep>0.25) continue;
+      bd=d; best=c;
+    }
+    if(best) spots.push({x:best[0],y:best[1]});
+  }
+  for(let k=spots.length;k<lv.loot;k++){
     const h=S.houses[k%S.houses.length];
     let x,y,tries=0,ok=false;
     do{
@@ -696,7 +882,8 @@ function strike(why){
 }
 
 function finish(how){
-  S.over=true; S.ended=how;
+  S.over=true; S.ended=how; CG.gameplayStop();
+  if(how==="clean") CG.happytime();
   if(how==="hit") SFX.crash(); else if(how==="caught") SFX.caught();
   else if(how==="clean") SFX.clean();
   // If a door opens you bolt for the tree line and half the pile stays behind.
@@ -725,25 +912,44 @@ function finish(how){
     : (S.haul===0 ? "Marvin spent the whole night unseen and went home with nothing. Be bolder."
       : "The sun came up with " + left + " still out there. Marvin walked off with " + S.haul + ".");
   STASH+=S.kept;                         // a bad night still pays for the next one
-  renderCombos(); renderTricks();
+  renderCombos(); renderTricks(); save();
   BEST[LEVEL]=Math.max(BEST[LEVEL]||0,S.kept);
   renderShop();
   const cleared = how!=="caught" && how!=="hit";
   if(cleared) UNLOCKED=Math.max(UNLOCKED,Math.min(LEVELS.length-1,LEVEL+1));
+  try{ if(CG.ready) CG.sdk.game.reportGameCompletedPercentage(
+    Math.round(((cleared?LEVEL+1:LEVEL)/LEVELS.length)*100)); }catch(e){}
   const more = LEVEL<LEVELS.length-1;
   el("next").style.display = (cleared&&more) ? "block" : "none";
+  const dropped=S.haul-S.kept;
+  const rec=el("recover");
+  rec.style.display = (dropped>0 && ADS_ENABLED && CG.ready && CG.ads && !S.recovered) ? "block" : "none";
+  rec.textContent = "WATCH AN AD TO KEEP THE OTHER "+dropped;
   el("nextnote").textContent = !more ? "That was the last block on the map."
     : cleared ? "Next up: "+LEVELS[LEVEL+1].name+". "+LEVELS[LEVEL+1].note
     : (SHOP.some(u=>UP[u.k]<u.max && STASH>=u.cost[UP[u.k]])
        ? "Get to dawn on this block to open the next one. You have enough put away to buy something first."
        : "Get to dawn on this block to open the next one. Every night pays, even a bad one, so the stash keeps growing.");
-  el("over").style.display="flex";
+  CG.nights++;
+  if(CG.nights>=2){ CG.midgame(()=>{ el("over").style.display="flex"; }); }
+  else el("over").style.display="flex";
 }
 
 /* ================= render ================= */
 const cv=document.getElementById("c"), g=cv.getContext("2d");
 let SC=1, DPR=1;
+/* Decide the layout from the frame we are actually inside, then measure. The
+   two have to happen in that order or the canvas sizes against the old shape. */
+function pickLayout(){
+  const a=document.getElementById("app");
+  if(!a) return;
+  const r=a.getBoundingClientRect();
+  const vw=Math.round(r.width||window.innerWidth), vh=Math.round(r.height||window.innerHeight);
+  a.classList.toggle("wide", vw>=560 && vw>=vh);
+  a.classList.toggle("short", vw>=vh && vh<=480);
+}
 function fit(){
+  pickLayout();
   const w=document.getElementById("wrap");
   SC=Math.min((w.clientWidth-8)/WW,(w.clientHeight-8)/WH);
   DPR=Math.min(2,window.devicePixelRatio||1);
@@ -1214,7 +1420,7 @@ function renderShop(){
 function buy(k){
   const u=SHOP.find(x=>x.k===k); if(!u||UP[k]>=u.max) return;
   const cost=u.cost[UP[k]]; if(STASH<cost) return;
-  STASH-=cost; UP[k]++; SFX.buy(); renderShop();
+  STASH-=cost; UP[k]++; SFX.buy(); renderShop(); save();
 }
 document.addEventListener("click",e=>{
   const b=e.target.closest&&e.target.closest("[data-buy]");
@@ -1323,7 +1529,7 @@ function hud(){
    nothing to load. Eight blocks get eight different sneaking tracks, and a
    tension layer rides on top of whichever one is playing whenever the night
    starts going wrong. */
-const AU={ok:false,on:true,ctx:null,step:0,next:0,timer:null};
+const AU={ok:false,on:true,adMuted:false,ctx:null,step:0,next:0,timer:null};
 
 const TRACKS=[
   // root, scale (semitones), bpm, bass pattern, pluck pattern, hat pattern, pluck wave
@@ -1357,9 +1563,27 @@ function audioInit(){
   const C=window.AudioContext||window.webkitAudioContext; if(!C) return;
   try{ AU.ctx=new C(); }catch(e){ return; }
   const g=t=>{const n=AU.ctx.createGain();n.gain.value=t;return n;};
-  AU.master=g(0.85); AU.master.connect(AU.ctx.destination);
-  AU.musicBus=g(0.54); AU.musicBus.connect(AU.master);   // <- track level
-  AU.sfxBus=g(0.28);   AU.sfxBus.connect(AU.master);     // <- effects level
+  AU.master=g(0.85);
+  /* master -> limiter -> makeup -> out. The limiter lets the mix run hot and the
+     makeup gain wins back what compression takes off, which is where the extra
+     loudness comes from. It is self-limiting, so more voices cannot clip. */
+  AU.nodes=[AU.master];            // <- everything stays referenced from here
+  let wantLimiter=false;
+  try{ wantLimiter = new URLSearchParams(location.search).get("limiter")==="1"; }catch(e){}
+  AU.comp=null; AU.makeup=null;
+  if(wantLimiter){
+    try{
+      const comp=AU.ctx.createDynamicsCompressor();
+      comp.threshold.value=-14; comp.knee.value=10; comp.ratio.value=6;
+      comp.attack.value=0.004; comp.release.value=0.20;
+      AU.comp=comp; AU.makeup=g(2.6);
+      AU.master.connect(comp); comp.connect(AU.makeup); AU.makeup.connect(AU.ctx.destination);
+      AU.nodes.push(comp,AU.makeup);
+    }catch(e){ AU.comp=null; AU.makeup=null; }
+  }
+  if(!AU.comp) AU.master.connect(AU.ctx.destination);
+  AU.musicBus=g(1.30); AU.musicBus.connect(AU.master);   // <- track level
+  AU.sfxBus=g(0.34);   AU.sfxBus.connect(AU.master);     // <- effects level
   AU.calm=g(1);        AU.calm.connect(AU.musicBus);
   AU.tense=g(0);       AU.tense.connect(AU.musicBus);
   AU.noise=noiseBuf();
@@ -1371,19 +1595,40 @@ function audioInit(){
   const cs=AU.ctx.createBufferSource(); cs.buffer=AU.noise; cs.loop=true; cs.connect(cf); cs.start();
   const co=AU.ctx.createOscillator(); co.type="sawtooth"; co.frequency.value=58;
   const cog=g(0.5); co.connect(cog); cog.connect(cf); co.start();
+  AU.nodes.push(AU.carGain,cf,cs,co,cog);
 
   // sprinklers: a hiss that fades up when Marvin is standing in one
   AU.sprkGain=g(0); AU.sprkGain.connect(AU.master);
   const sf=AU.ctx.createBiquadFilter(); sf.type="bandpass"; sf.frequency.value=5200; sf.Q.value=0.7;
   sf.connect(AU.sprkGain);
   const ss=AU.ctx.createBufferSource(); ss.buffer=AU.noise; ss.loop=true; ss.connect(sf); ss.start();
+  AU.nodes.push(AU.sprkGain,sf,ss,AU.musicBus,AU.sfxBus,AU.calm,AU.tense);
 
-  AU.ok=true; AU.next=AU.ctx.currentTime+0.1;
+  AU.ok=true; applyAudio(); AU.next=AU.ctx.currentTime+0.1;
   AU.timer=setInterval(tick,25);
 }
-function audioResume(){ if(AU.ok && AU.ctx.state==="suspended") AU.ctx.resume(); }
+function audioResume(){
+  if(!AU.ok) return;
+  try{
+    if(AU.ctx.state!=="running"){
+      const p=AU.ctx.resume();
+      // a context that unblocks late has a stale schedule; start it fresh
+      if(p&&p.then) p.then(()=>{ AU.next=AU.ctx.currentTime+0.05; paintSoundButton(); },()=>{});
+      else AU.next=AU.ctx.currentTime+0.05;
+    }
+  }catch(e){}
+}
+/* Safari in an iframe is strict: the context has to be created and resumed from
+   inside a real gesture, and it suspends again whenever the tab loses focus. So
+   every early interaction unlocks it, and the frame loop keeps an eye on it. */
+function unlockAudio(){ audioInit(); audioResume(); }
+["pointerdown","pointerup","touchend","keydown"].forEach(ev=>{
+  document.addEventListener(ev,unlockAudio,{passive:true});
+});
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) audioResume(); });
 
 function tone(f,t0,dur,type,vol,bus,f2){
+  dbgNotes++;
   const o=AU.ctx.createOscillator(), a=AU.ctx.createGain();
   o.type=type||"triangle"; o.frequency.setValueAtTime(f,t0);
   if(f2) o.frequency.exponentialRampToValueAtTime(Math.max(20,f2),t0+dur);
@@ -1416,7 +1661,8 @@ function danger(){
 }
 
 function tick(){
-  if(!AU.ok||!AU.on||AU.ctx.state!=="running") return;
+  if(!AU.ok||!AU.on) return;
+  if(AU.ctx.state==="closed") return;
   const T=TR(), dg=running?danger():0;
   const spb=60/(T.bpm*(1+dg*0.16))/4;                 // sixteenths, hurried when hunted
   const now=AU.ctx.currentTime;
@@ -1427,17 +1673,17 @@ function playStep(i,t,T,dg){
   const sc=T.sc, deg=n=>midi(T.root+sc[n%sc.length]+12*Math.floor(n/sc.length));
   const quiet = running?1:0.55;
   const b=T.bass[i];
-  if(b>=0) tone(deg(b),t,0.26,"triangle",0.34*quiet,AU.calm);
-  if(dg>0.5 && b<0 && i%2===0) tone(deg(0)/2,t,0.12,"square",0.12*dg,AU.tense);
+  if(b>=0) tone(deg(b),t,0.26,"triangle",0.40*quiet,AU.calm);
+  if(dg>0.5 && b<0 && i%2===0) tone(deg(0)/2,t,0.12,"square",0.16*dg,AU.tense);
   const pk=T.pluck[i];
-  if(pk>=0) tone(deg(pk)*2,t,0.22,T.wave,0.080*quiet,AU.calm);
-  if(T.hat[i]) hiss(t,0.035,7000,0.038*quiet,"highpass",AU.calm);
+  if(pk>=0) tone(deg(pk)*2,t,0.22,T.wave,0.115*quiet,AU.calm);
+  if(T.hat[i]) hiss(t,0.035,7000,0.052*quiet,"highpass",AU.calm);
   // tension: a sour pair of notes leaning on the root, only audible when hunted
   if(dg>0.12 && i%4===0){
-    tone(deg(0)*2,t,0.5,"sawtooth",0.05*dg,AU.tense);
-    tone(deg(0)*2*Math.pow(2,1/12),t,0.5,"sawtooth",0.05*dg,AU.tense);
+    tone(deg(0)*2,t,0.5,"sawtooth",0.07*dg,AU.tense);
+    tone(deg(0)*2*Math.pow(2,1/12),t,0.5,"sawtooth",0.07*dg,AU.tense);
   }
-  if(dg>0.75 && i%8===0) tone(deg(0)/2,t,0.45,"sawtooth",0.16*dg,AU.tense);
+  if(dg>0.75 && i%8===0) tone(deg(0)/2,t,0.45,"sawtooth",0.21*dg,AU.tense);
 }
 
 /* per-frame mix: tension up, calm down, plus the two continuous sources */
@@ -1482,11 +1728,15 @@ const SFX={
     tone(880,t,0.08,"square",0.08); tone(1320,t+0.07,0.14,"square",0.07); }
 };
 
+el("sound").addEventListener("dblclick",e=>{
+  e.preventDefault(); AUDIO_DEBUG=!AUDIO_DEBUG;   // no URL to edit inside the QA player
+});
 el("sound").addEventListener("click",()=>{
-  AU.on=!AU.on;
-  el("sound").textContent=AU.on?"SOUND ON":"SOUND OFF";
-  el("sound").dataset.off=AU.on?"0":"1";
-  if(AU.ok){ AU.master.gain.value=AU.on?0.85:0; if(AU.on) audioResume(); }
+  if(CG.muted) return;                  // the site's mute wins over the in-game toggle
+  audioInit();
+  if(AU.ok && AU.ctx.state!=="running"){ audioResume(); paintSoundButton(); return; }
+  AU.on=!AU.on; applyAudio(); paintSoundButton();
+  if(AU.on) audioResume();
 });
 
 /* ================= title screen =================
@@ -1613,6 +1863,44 @@ function titleLoop(ts){
 }
 function stopTitle(){ tRun=false; el("title").style.display="none"; }
 
+/* Add ?audio=debug to the URL for a live readout of the whole chain. */
+let AUDIO_DEBUG=(()=>{ try{
+  return new URLSearchParams(location.search).get("audio")==="debug"; }catch(e){ return false; } })();
+let dbgNotes=0;
+function audioDebug(){
+  if(!AUDIO_DEBUG){ const n0=el("audiodbg"); if(n0) n0.style.display="none"; return; }
+  let n=el("audiodbg");
+  if(!n){
+    n=document.createElement("div"); n.id="audiodbg";
+    n.style.cssText="position:absolute;right:8px;bottom:8px;z-index:30;font:9px/1.5 ui-monospace,"
+      +"monospace;color:#7fbf7a;background:#000C;padding:6px 8px;border:1px solid #2a323d;"
+      +"white-space:pre;pointer-events:none";
+    document.getElementById("app").appendChild(n);
+  }
+  n.textContent =
+    "ctx      "+(AU.ok?AU.ctx.state:"not created")+"\n"+
+    "master   "+(AU.ok?AU.master.gain.value.toFixed(2):"-")+"\n"+
+    "limiter  "+(AU.comp?"on":"off")+"   makeup "+(AU.makeup?AU.makeup.gain.value.toFixed(1):"-")+"\n"+
+    "music    "+(AU.ok?AU.musicBus.gain.value.toFixed(2):"-")+"   sfx "+(AU.ok?AU.sfxBus.gain.value.toFixed(2):"-")+"\n"+
+    "on "+AU.on+"  siteMute "+CG.muted+"  ad "+AU.adMuted+"\n"+
+    "sdk      "+(CG.ready?"ready":"absent")+"  settings "+
+      (()=>{ try{ return JSON.stringify(CG.sdk.game.settings); }catch(e){ return "n/a"; } })()+"\n"+
+    "notes    "+dbgNotes+"\n"+
+    "nodes    "+(AU.nodes?AU.nodes.length:0);
+  n.style.display="block";
+}
+
+el("unlock").addEventListener("click",()=>{
+  audioInit(); audioResume(); paintSoundButton();
+});
+/* Shown only when the browser has actually refused, so it never nags a player
+   whose sound is simply working. */
+function paintUnlock(){
+  const b=el("unlock"); if(!b) return;
+  const blocked = AU.ok && AU.ctx && AU.ctx.state!=="running" && !CG.muted;
+  b.style.display = blocked ? "block" : "none";
+}
+
 /* ================= input ================= */
 function toWorld(e){
   const r=cv.getBoundingClientRect();
@@ -1646,33 +1934,60 @@ app.addEventListener("pointercancel",release);
 window.addEventListener("blur",()=>release());
 
 /* ================= loop ================= */
-let last=0, running=false;
+let last=0, running=false, lastResumeTry=-1;
 function frame(t){
   const dt=Math.min(0.05,(t-(last||t))/1000); last=t;
   if(running) update(dt);
-  draw(); hud(); audioFrame();
+  draw(); hud(); audioFrame(); audioDebug(); paintUnlock();
+  if(AU.ok && AU.ctx.state!=="running"){
+    if(((t/500)|0)!==lastResumeTry){ lastResumeTry=(t/500)|0; audioResume(); paintSoundButton(); }
+  }
   requestAnimationFrame(frame);
 }
 function begin(level,seed){
-  audioInit(); audioResume();
+  audioInit(); audioResume(); CG.gameplayStart();
+  try{ if(CG.ready) CG.sdk.game.setGameContext({night:String((level===undefined?LEVEL:level)+1)}); }catch(e){}
   newNight(level,seed); fit(); renderTricks();
   if(S.tut) banner("DRAG ANYWHERE TO MOVE","a short drag creeps, a long drag runs loud");
   el("brief").style.display="none"; el("over").style.display="none";
   last=0; running=true;
 }
-el("enter").addEventListener("click",()=>{
-  stopTitle(); el("brief").style.display="flex"; audioInit(); audioResume();
+/* Straight into play. CrazyGames wants a new player in gameplay on the first
+   click, and night one teaches itself with in-game prompts anyway. */
+el("enter").addEventListener("click",()=>{ stopTitle(); begin(LEVEL); });
+el("howto").addEventListener("click",()=>{ el("brief").style.display="flex"; });
+
+el("recover").addEventListener("click",()=>{
+  const dropped=S.haul-S.kept;
+  if(dropped<=0||S.recovered) return;
+  CG.rewarded(()=>{
+    S.recovered=true; S.kept=S.haul; STASH+=dropped; save();
+    el("finalhaul").textContent=S.kept; el("tdrop").textContent=0;
+    el("recover").style.display="none";
+    el("overnote").textContent="You went back for the rest of it. Nothing left in the street.";
+    renderShop(); SFX.bank();
+  },()=>{ el("recover").style.display="none"; });
 });
-el("start").addEventListener("click",()=>begin(LEVEL));
+
+el("start").addEventListener("click",()=>{
+  el("brief").style.display="none";
+  if(tRun) return;                       // opened from the title, just close it
+  if(!running) begin(LEVEL);
+});
 el("again").addEventListener("click",()=>begin(LEVEL));
 el("next").addEventListener("click",()=>begin(LEVEL+1));
-window.addEventListener("resize",()=>{ fit(); titleFit(); });
+const refit=()=>{ fit(); titleFit(); };
+window.addEventListener("resize",refit);
+window.addEventListener("orientationchange",()=>{ refit(); setTimeout(refit,250); });
 
 const qs=new URLSearchParams(location.search);
 if(qs.has("night")) LEVEL=clamp(parseInt(qs.get("night"),10)-1,0,LEVELS.length-1);
 newNight(LEVEL, qs.has("seed")?parseInt(qs.get("seed"),10):undefined);
 el("briefline").textContent="Night "+S.lv.n+" of "+LEVELS.length+", "+S.lv.name
   +". Carry what you can to the storm drain before the whole block is awake. "+S.lv.note;
+CG.pullSave();                 // browser storage now, cloud save once the SDK lands
+CG.readSettings();             // honours ?muteAudio=true even before the SDK answers
+CG.init();
 renderShop(); renderCombos();
 fit(); titleFit(); requestAnimationFrame(frame); requestAnimationFrame(titleLoop);
 </script>
