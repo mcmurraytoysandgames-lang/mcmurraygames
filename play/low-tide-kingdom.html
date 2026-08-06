@@ -397,7 +397,7 @@ dune.position.set(0,CFG.baseH+(CFG.rows-1)*CFG.slopePerRow+1.0, cellPos(0,0).z-C
 dune.receiveShadow=true;scene.add(dune);
 for(let i=0;i<9;i++){
   const tuft=new THREE.Mesh(new THREE.ConeGeometry(.5,1.6,5),M.grass);
-  tuft.position.set(-W/2+4+i*(W/9), dune.position.y+2.2, dune.position.z+(i%2?1.4:-1.2));
+  tuft.position.set(-W/2+4+i*(W/9), dune.position.y+2.4, dune.position.z+(i%2?2.5:-2.5));
   scene.add(tuft);
 }
 const walk=new THREE.Mesh(new THREE.BoxGeometry(W+14,.5,3),M.wood);
