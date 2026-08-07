@@ -129,6 +129,7 @@ section{padding-block:clamp(2.5rem,6vw,4.5rem);}
   transition:transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s ease;
   will-change:transform;
   overflow:hidden;
+  position:relative;
 }
 /* each card lies on the table at its own angle */
 .deal .card:nth-child(4n+1){transform:rotate(-1.6deg);}
@@ -151,6 +152,14 @@ section{padding-block:clamp(2.5rem,6vw,4.5rem);}
   border-radius:9px 9px 0 0;
   background:#0d1512;
 }
+.card .tag{
+  position:absolute;top:.85rem;right:.85rem;z-index:2;
+  font-family:var(--util);font-size:.6rem;font-weight:700;
+  letter-spacing:.14em;text-transform:uppercase;
+  background:var(--brass);color:var(--ink);
+  padding:.3rem .55rem;border-radius:3px;
+  box-shadow:0 2px 8px rgba(0,0,0,.45);
+}
 
 .stock{
   font-family:var(--util);font-size:.63rem;font-weight:700;
@@ -170,6 +179,17 @@ section{padding-block:clamp(2.5rem,6vw,4.5rem);}
 .price{font-weight:700;color:var(--ink);}
 .cue{color:#8A6D2C;text-transform:uppercase;letter-spacing:.14em;font-size:.66rem;}
 .card:hover .cue,.card:focus-visible .cue{color:var(--ink);}
+
+/* ---- paid shelf ---- */
+.paid{
+  background:rgba(199,154,62,.07);
+  border-top:1px solid rgba(199,154,62,.3);
+  border-bottom:1px solid rgba(199,154,62,.3);
+}
+.paid .lede{
+  max-width:56ch;margin:-1.6rem 0 2.2rem;
+  color:#DCD2BC;font-size:.98rem;
+}
 
 /* ---- about + footer ---- */
 .about{
@@ -205,6 +225,7 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
   <div class="wrap">
     <a class="wordmark" href="/">McMurray Games</a>
     <nav>
+      <a href="#buy">Buy</a>
       <a href="#play">Play</a>
       <a href="#tabletop">Tabletop</a>
       <a href="#studio">Studio</a>
@@ -235,25 +256,42 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
   </div>
 </div>
 
+<!-- ============ PAID ============
+     $1 releases. Cards link out to itch.io. -->
+<section class="paid" id="buy">
+  <div class="wrap">
+    <div class="head">
+      <h2>Worth a dollar</h2>
+      <span>Full releases</span>
+    </div>
+    <p class="lede">The bigger ones. Hours instead of minutes, a real ending, and a file you keep. A dollar, or more if you feel like it.</p>
+
+    <div class="deal">
+
+      <a class="card" href="https://mcmurraygames.itch.io/on-the-account">
+        <img class="art" src="/art/on-the-account.jpg" alt="" width="600" height="600">
+        <span class="tag">$1+</span>
+        <div class="stock"><span>Adventure</span><span>On itch.io</span></div>
+        <h3>On the Account</h3>
+        <p>Five cursed coins, five islands, five names on the articles. Sail the <em>Rosamund</em>, dig the silver back out of the sand, and carry it to the Bone Chapel. The sea keeps count.</p>
+        <div class="meta"><span class="price">$1 or more</span><span class="cue">Get it</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
 <!-- ============ BROWSER GAMES ============
      Builds live in /play/. Cover art lives in /art/. -->
 <section id="play">
   <div class="wrap">
     <div class="head">
       <h2>In the browser</h2>
-      <span>Browser games</span>
+      <span>Free to play</span>
     </div>
 
     <div class="deal">
 
-      <a class="card" href="https://mcmurraygames.itch.io/on-the-account">
-        <img class="art" src="/art/on-the-account.jpg" alt="" width="600" height="600" loading="lazy">
-        <div class="stock"><span>Adventure</span><span>On itch.io</span></div>
-        <h3>On the Account</h3>
-        <p>Five cursed coins, five islands, five names on the articles. Sail the <em>Rosamund</em>, dig the silver back out of the sand, and carry it to the Bone Chapel. The sea keeps count.</p>
-        <div class="meta"><span class="price">$1 or more</span><span class="cue">Get it</span></div>
-      </a>
-      
       <a class="card" href="/play/LuxTheMoth.html">
         <img class="art" src="/art/lux.jpg" alt="" width="600" height="600">
         <div class="stock"><span>Arcade</span><span>1 player</span></div>
@@ -294,7 +332,7 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
         <div class="meta"><span class="price">Free</span><span class="cue">Play now</span></div>
       </a>
 
-     <a class="card" href="/play/thiefofweather.html">
+      <a class="card" href="/play/thiefofweather.html">
         <img class="art" src="/art/thief-of-weather.jpg" alt="" width="600" height="600" loading="lazy">
         <div class="stock"><span>Adventure</span><span>1 player</span></div>
         <h3>Thief of Weather</h3>
@@ -370,7 +408,7 @@ a:focus-visible,.card:focus-visible{outline:2px solid var(--brass);outline-offse
   <div class="wrap">
     <p>&copy; 2026 McMurray Games</p>
     <nav>
-      <a href="#REPLACE-ITCH-URL">itch.io</a>
+      <a href="https://mcmurraygames.itch.io">itch.io</a>
       <a href="#REPLACE-TGC-URL">The Game Crafter</a>
       <a href="mailto:contact@mcmurraygames.com">Email</a>
     </nav>
