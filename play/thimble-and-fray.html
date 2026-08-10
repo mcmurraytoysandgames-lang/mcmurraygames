@@ -1,0 +1,1660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>THIMBLE &amp; FRAY — The First Tapestry</title>
+<style>
+  html,body{margin:0;padding:0;background:#4a4234;height:100%;overflow:hidden;touch-action:none;
+    display:flex;align-items:center;justify-content:center;font-family:Georgia,'Times New Roman',serif;
+    -webkit-user-select:none;user-select:none;}
+  #wrap{position:relative;}
+  canvas{display:block;box-shadow:0 12px 60px rgba(0,0,0,.55);border-radius:3px;touch-action:none;}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="960" height="600"></canvas></div>
+<script>
+"use strict";
+/* ============================================================
+   THIMBLE & FRAY — The First Tapestry
+   A co-op fantasy quest embroidered on linen. Four panels.
+   McMurray Games first playable.
+   P1 WARP: WASD move, F strike, R stitch (mend / cast / revive)
+   P2 WEFT: Arrows move, L strike, K stitch
+   T toggles solo mode (Weft follows as a stitched companion)
+   M mutes. Enter starts / restarts.
+   ============================================================ */
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const VW = 960, VH = 600;
+const WORLD_W = 6400, WORLD_H = 600;
+const BAND_TOP = 222, BAND_BOT = 552;
+
+/* ---------- fit to screen ---------- */
+let viewScale=1;
+function fit(){
+  viewScale=Math.min(innerWidth/VW, innerHeight/VH);
+  cv.style.width=(VW*viewScale)+'px';
+  cv.style.height=(VH*viewScale)+'px';
+}
+addEventListener('resize',fit); addEventListener('orientationchange',()=>setTimeout(fit,150)); fit();
+
+/* ---------- touch controls ---------- */
+const mobile = ('ontouchstart' in window) || navigator.maxTouchPoints>0;
+const joy={active:false,id:null,bx:0,by:0,dx:0,dy:0};
+const btnStrike={x:VW-84,y:VH-84,r:46,on:false,id:null,label:'STRIKE'};
+const btnStitch={x:VW-196,y:VH-138,r:40,on:false,id:null,label:'STITCH'};
+function cvPos(t){
+  const r=cv.getBoundingClientRect();
+  return {x:(t.clientX-r.left)/viewScale, y:(t.clientY-r.top)/viewScale};
+}
+function touchDown(e){
+  e.preventDefault(); ac();
+  if(state!=='play'){ onEnter(); return; }
+  for(const t of e.changedTouches){
+    const p=cvPos(t);
+    if(Math.hypot(p.x-btnStrike.x,p.y-btnStrike.y)<btnStrike.r+14){ btnStrike.on=true; btnStrike.id=t.identifier; continue; }
+    if(Math.hypot(p.x-btnStitch.x,p.y-btnStitch.y)<btnStitch.r+14){ btnStitch.on=true; btnStitch.id=t.identifier; continue; }
+    if(p.x<VW*0.55 && !joy.active){ joy.active=true; joy.id=t.identifier; joy.bx=p.x; joy.by=p.y; joy.dx=0; joy.dy=0; }
+  }
+}
+function touchMove(e){
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(joy.active && t.identifier===joy.id){
+      const p=cvPos(t);
+      let dx=p.x-joy.bx, dy=p.y-joy.by;
+      const d=Math.hypot(dx,dy);
+      if(d>52){ dx=dx/d*52; dy=dy/d*52; joy.bx=p.x-dx; joy.by=p.y-dy; }
+      joy.dx=dx; joy.dy=dy;
+    }
+  }
+}
+function touchUp(e){
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(joy.active && t.identifier===joy.id){ joy.active=false; joy.dx=0; joy.dy=0; }
+    if(t.identifier===btnStrike.id){ btnStrike.on=false; btnStrike.id=null; }
+    if(t.identifier===btnStitch.id){ btnStitch.on=false; btnStitch.id=null; }
+  }
+}
+cv.addEventListener('touchstart',touchDown,{passive:false});
+cv.addEventListener('touchmove',touchMove,{passive:false});
+cv.addEventListener('touchend',touchUp,{passive:false});
+cv.addEventListener('touchcancel',touchUp,{passive:false});
+
+/* unified input reads: keyboard or touch */
+function atkPressed(p){ return keys[p.ctl.atk] || (mobile && p===p1 && btnStrike.on); }
+function actPressed(p){ return keys[p.ctl.act] || (mobile && p===p1 && btnStitch.on); }
+
+/* ---------- palette: thread on linen ---------- */
+const LINEN   = '#e7ddc4', LINEN_D = '#d9cdae', LINEN_DD = '#c9bc9a';
+const CHALK   = 'rgba(120,110,90,0.38)';
+const CHARCOAL= '#3b3428';
+const INDIGO  = '#2e4172', INDIGO_L = '#5471ad';
+const MADDER  = '#a03a38', MADDER_L = '#c76a60';
+const MOSS    = '#6b7a3f', MOSS_D = '#4f5c2e';
+const GOLD    = '#b8912f', GOLD_L = '#d9b95c';
+const MOTHGRY = '#847a6b', MOTHGRY_D='#5f574b';
+const BARK    = '#7a5a38';
+
+/* ---------- input ---------- */
+const keys = {};
+addEventListener('keydown', e=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+  if(e.key==='Enter') onEnter();
+  if(e.key.toLowerCase()==='m') muted=!muted;
+  if(e.key.toLowerCase()==='t' && state==='play'){ solo=!solo; toast(solo?'Solo mode: Fray follows your lead.':'Solo mode off. Two hands on the cloth.'); }
+});
+addEventListener('keyup', e=> keys[e.key.toLowerCase()] = false);
+
+/* ---------- audio: the score is played on the threads ---------- */
+let AC=null, muted=false;
+const Music={mode:'title', step:0, nextT:0};
+function ac(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); Music.nextT=0; } return AC; }
+let _noiseBuf=null;
+function getNoise(){ const a=ac(); if(!_noiseBuf){ const b=a.createBuffer(1,(a.sampleRate/2)|0,a.sampleRate);
+  const d=b.getChannelData(0); for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; _noiseBuf=b; } return _noiseBuf; }
+function envGain(t,dur,vol,atk){ const a=ac(),g=a.createGain();
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002,vol),t+(atk||0.008));
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur); g.connect(a.destination); return g; }
+const N=m=>440*Math.pow(2,(m-69)/12);
+function pluck(freq,t,vol,dur){ if(muted)return; const a=ac(); t=t||a.currentTime; dur=dur||0.6;
+  const g=envGain(t,dur,vol||0.08);
+  const lp=a.createBiquadFilter(); lp.type='lowpass';
+  lp.frequency.setValueAtTime(freq*6,t); lp.frequency.exponentialRampToValueAtTime(freq*1.5,t+dur*0.7); lp.connect(g);
+  const o=a.createOscillator(); o.type='triangle'; o.frequency.value=freq;
+  const o2=a.createOscillator(); o2.type='sine'; o2.frequency.value=freq*1.004;
+  o.connect(lp); o2.connect(lp); o.start(t); o2.start(t); o.stop(t+dur); o2.stop(t+dur); }
+function bell(freq,t,vol,dur){ if(muted)return; const a=ac(); t=t||a.currentTime; dur=dur||1.4; vol=vol||0.05;
+  const g=envGain(t,dur,vol,0.005); const o=a.createOscillator(); o.type='sine'; o.frequency.value=freq; o.connect(g); o.start(t); o.stop(t+dur);
+  const g2=envGain(t,dur*0.6,vol*0.4,0.005); const o3=a.createOscillator(); o3.type='sine'; o3.frequency.value=freq*2.76; o3.connect(g2); o3.start(t); o3.stop(t+dur); }
+function noiseHit(t,dur,vol,f1,f2,type){ if(muted)return; const a=ac(); t=t||a.currentTime;
+  const src=a.createBufferSource(); src.buffer=getNoise(); src.loop=true;
+  const f=a.createBiquadFilter(); f.type=type||'bandpass'; f.Q.value=0.9; f.frequency.setValueAtTime(f1,t);
+  if(f2) f.frequency.exponentialRampToValueAtTime(f2,t+dur);
+  const g=envGain(t,dur,vol,0.01); f.connect(g); src.connect(f); src.start(t); src.stop(t+dur+0.05); }
+function toneAt(freq,t,dur,type,vol,slide){ if(muted)return; const a=ac(); t=t||a.currentTime;
+  const g=envGain(t,dur,vol||0.1); const o=a.createOscillator(); o.type=type||'triangle'; o.frequency.setValueAtTime(freq,t);
+  if(slide) o.frequency.exponentialRampToValueAtTime(slide,t+dur); o.connect(g); o.start(t); o.stop(t+dur); }
+
+/* sfx vocabulary */
+const sPluck  = f=> pluck(f||294,null,0.1,0.5);
+const sTick   = ()=> pluck(1320,null,0.045,0.12);                                  // snip
+const sSwing  = ()=> noiseHit(null,0.09,0.05,1800,600);                            // needle through air
+const sThud   = ()=> { toneAt(105,null,0.16,'sawtooth',0.1,70); noiseHit(null,0.12,0.05,220,90,'lowpass'); };
+const sHurt   = ()=> { toneAt(170,null,0.22,'sawtooth',0.12,85); pluck(140,null,0.08,0.3); };
+const sChime  = ()=> { const t=ac().currentTime; bell(N(74),t,0.06); bell(N(81),t+0.12,0.05); };
+const sUnravel= ()=> { const t=ac().currentTime; [79,76,72].forEach((m,i)=>pluck(N(m),t+i*0.06,0.06,0.35)); };
+const sDown   = ()=> toneAt(320,null,0.8,'triangle',0.09,70);                      // a long thread giving way
+const sCast   = ()=> { const t=ac().currentTime; [62,69,74].forEach((m,i)=>pluck(N(m),t+i*0.09,0.08,0.5)); };
+const sSkein  = ()=> { const t=ac().currentTime; bell(N(86),t,0.055); bell(N(90),t+0.1,0.045); };
+const sRevive = ()=> { const t=ac().currentTime; [62,66,69,74].forEach((m,i)=>pluck(N(m),t+i*0.08,0.07,0.4)); };
+const sDye    = ()=> { const t=ac().currentTime; pluck(N(70),t,0.06,0.25); pluck(N(67),t+0.09,0.06,0.3); };
+const sGate   = ()=> { const t=ac().currentTime; [57,62,66,69,74].forEach((m,i)=>pluck(N(m),t+i*0.06,0.06,0.4)); };
+const sPin    = ()=> bell(N(93),null,0.08,0.9);
+const sInhale = ()=> noiseHit(null,2.6,0.05,300,1600);
+const sRest   = ()=> { noiseHit(null,0.7,0.05,1400,300); bell(N(69),null,0.05); };
+const sLayer  = ()=> { const t=ac().currentTime; [81,77,74,69].forEach((m,i)=>pluck(N(m),t+i*0.07,0.06,0.4)); };
+const sWave   = ()=> { const t=ac().currentTime; noiseHit(t,0.2,0.08,150,80,'lowpass'); noiseHit(t+0.25,0.2,0.08,150,80,'lowpass'); bell(N(62),t+0.5,0.06); };
+const sVictory= ()=> { const t=ac().currentTime; [62,66,69,74,78,81].forEach((m,i)=>pluck(N(m),t+i*0.11,0.08,0.7)); bell(N(86),t+0.75,0.07,2); };
+
+/* generative score: mood per panel, battle layer when the Court presses */
+const MODES={
+  title: {bpm:70, prog:[[62,66,69],[59,62,66],[55,59,62],[57,61,64]], scale:[62,64,66,69,71], mel:0.35, pad:0.045, bellP:0.3},
+  meadow:{bpm:92, prog:[[62,66,69],[55,59,62],[59,62,66],[57,61,64]], scale:[62,64,66,69,71], mel:0.55, pad:0.05,  bellP:0.15},
+  pale:  {bpm:72, prog:[[62,65,69],[65,69,72],[60,64,67],[57,60,64]], scale:[62,64,65,69,72], mel:0.28, pad:0.04,  bellP:0.4},
+  border:{bpm:104,prog:[[55,59,62],[52,55,59],[60,64,67],[62,66,69]], scale:[62,64,66,67,71], mel:0.6,  pad:0.05,  bellP:0.2, arp:true},
+  loom:  {bpm:96, prog:[[62,66,69],[57,61,64],[59,62,66],[55,59,62]], scale:[62,64,66,69,71], mel:0.5,  pad:0.055, bellP:0.3},
+  battle:{bpm:126,prog:[[62,65,69],[58,62,65],[55,58,62],[57,61,64]], scale:[62,64,65,67,69,72], mel:0.5, pad:0.045, perc:true},
+  end:   {bpm:60, prog:[[62,66,69],[55,59,62]], scale:[62,64,66,69,71], mel:0.3, pad:0.05, bellP:0.5},
+};
+let melLast=69;
+function pickMel(M,chord){
+  if(Math.random()<0.6) melLast=chord[Math.floor(Math.random()*chord.length)]+12;
+  else { const s=M.scale; let c=s[Math.floor(Math.random()*s.length)]+12;
+    if(Math.abs(c-melLast)>7) c=melLast+(c>melLast?2:-2); melLast=c; }
+  return melLast;
+}
+function padChord(chord,t,dur,vol){ if(muted)return; const a=ac();
+  for(const m of chord){ const g=envGain(t,dur,vol,0.5);
+    const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900; lp.connect(g);
+    const o=a.createOscillator(); o.type='triangle'; o.frequency.value=N(m);
+    const o2=a.createOscillator(); o2.type='triangle'; o2.frequency.value=N(m)*1.006;
+    o.connect(lp); o2.connect(lp); o.start(t); o2.start(t); o.stop(t+dur); o2.stop(t+dur); } }
+function musicMode(){
+  if(state==='title') return 'title';
+  if(state==='end') return 'end';
+  const fighting=(gnarl&&!gnarl.dead)||(glutton&&!glutton.dead)||(king&&!king.dead)||(panel===4&&defense.active&&!bossDone);
+  if(fighting) return 'battle';
+  return ['meadow','pale','border','loom'][panel-1]||'meadow';
+}
+function musicTick(){
+  if(!AC||muted) return;
+  const a=AC, m=musicMode();
+  if(m!==Music.mode){ Music.mode=m; Music.step=0; }
+  if(Music.nextT < a.currentTime-0.5) Music.nextT=a.currentTime+0.05;
+  const M=MODES[Music.mode], spb=60/M.bpm/2;
+  while(Music.nextT < a.currentTime+0.3){
+    const t=Music.nextT, s=Music.step%8, bar=Math.floor(Music.step/8);
+    const chord=M.prog[bar%M.prog.length];
+    if(s===0){ padChord(chord,t,spb*8*0.95,M.pad); pluck(N(chord[0]-12),t,0.07,spb*4); }
+    if(M.perc){ if(s%2===0) noiseHit(t,0.08,s%4===0?0.055:0.03,200,90,'lowpass'); if(s===6) noiseHit(t,0.06,0.035,1500,900); }
+    if(M.arp && s%2===1) pluck(N(chord[(s>>1)%chord.length]+12),t,0.04,0.3);
+    if(Math.random()<M.mel && s%2===0) pluck(N(pickMel(M,chord)),t,0.055,0.55);
+    if(M.bellP && s===4 && Math.random()<M.bellP) bell(N(chord[2]+12),t,0.035,1.6);
+    Music.nextT+=spb; Music.step++;
+  }
+}
+
+/* ---------- helpers ---------- */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const lerp=(a,b,t)=>a+(b-a)*t;
+let shake=0;
+
+/* ---------- stitch drawing kit ---------- */
+function stitchLine(g,x1,y1,x2,y2,color,w,step){
+  step=step||9;
+  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1, n=Math.max(1,Math.floor(len/step));
+  const ux=dx/len, uy=dy/len, px=-uy, py=ux;
+  g.strokeStyle=color; g.lineWidth=w||2.4; g.lineCap='round';
+  for(let i=0;i<n;i++){
+    const t0=i/n, t1=(i+0.62)/n, off=(i%2?1:-1)*0.8;
+    g.beginPath();
+    g.moveTo(x1+dx*t0+px*off, y1+dy*t0+py*off);
+    g.lineTo(x1+dx*t1-px*off, y1+dy*t1-py*off);
+    g.stroke();
+  }
+}
+function crossStitch(g,x,y,s,color,w){
+  g.strokeStyle=color; g.lineWidth=w||2.2; g.lineCap='round';
+  g.beginPath(); g.moveTo(x-s,y-s); g.lineTo(x+s,y+s);
+  g.moveTo(x+s,y-s); g.lineTo(x-s,y+s); g.stroke();
+}
+function satinCircle(g,x,y,r,color){
+  g.strokeStyle=color; g.lineWidth=2; 
+  for(let rr=r; rr>0.5; rr-=2.1){ g.beginPath(); g.arc(x,y,rr,0,7); g.stroke(); }
+}
+function chalkText(g,txt,x,y,size,align){
+  g.font=(size||13)+'px Georgia'; g.fillStyle=CHALK; g.textAlign=align||'center';
+  g.fillText(txt,x,y);
+}
+
+/* ---------- linen texture ---------- */
+const linenTile = (()=>{
+  const t=document.createElement('canvas'); t.width=t.height=72; const g=t.getContext('2d');
+  g.fillStyle=LINEN; g.fillRect(0,0,72,72);
+  g.strokeStyle='rgba(190,178,150,0.5)'; g.lineWidth=1;
+  for(let i=0;i<72;i+=4){ g.beginPath(); g.moveTo(i+((i/4)%2),0); g.lineTo(i,72); g.stroke(); }
+  g.strokeStyle='rgba(210,200,172,0.55)';
+  for(let i=0;i<72;i+=4){ g.beginPath(); g.moveTo(0,i); g.lineTo(72,i+((i/4)%2)); g.stroke(); }
+  for(let i=0;i<26;i++){ g.fillStyle='rgba(150,135,105,'+(0.06+Math.random()*0.1)+')';
+    g.fillRect(Math.random()*72, Math.random()*72, 1.6, 1.6); }
+  return t;
+})();
+
+/* ---------- reveal mask (the world stitches itself in) ---------- */
+const SCALE=4;
+const maskC=document.createElement('canvas'); maskC.width=WORLD_W/SCALE; maskC.height=WORLD_H/SCALE;
+const maskG=maskC.getContext('2d');
+function reveal(x,y,r){
+  const gr=maskG.createRadialGradient(x/SCALE,y/SCALE,0, x/SCALE,y/SCALE, r/SCALE);
+  gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(.75,'rgba(255,255,255,0.9)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+  maskG.globalCompositeOperation='lighter'; maskG.fillStyle=gr;
+  maskG.beginPath(); maskG.arc(x/SCALE,y/SCALE,r/SCALE,0,7); maskG.fill();
+}
+
+/* ============================================================
+   WORLD DATA
+   ============================================================ */
+let panel=1;
+let pits=[], anchors=[], bridges=[], drains=[], skeins=[], pins=[];
+let eyelets=[], gates=[], dyepots=[], gaps=[], cocoon=null;
+let flowers=[], tufts=[], trees=[], holes=[];
+
+function scatter(seedv, dense){
+  flowers=[]; tufts=[]; trees=[]; holes=[];
+  let seed=seedv; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+  for(let i=0;i<(dense?70:44);i++){ const x=120+rnd()*(WORLD_W-400), y=BAND_TOP+20+rnd()*(BAND_BOT-BAND_TOP-40);
+    if(pits.some(p=>x>p.x-30&&x<p.x+p.w+30)) continue;
+    (rnd()<.4?flowers:tufts).push({x,y, c:rnd()<.5?MADDER_L:GOLD_L, r:rnd()*7});
+  }
+  (dense?[300,900,1500,2450,2950,4150,5550,6050]:[400,1200,2600,3350,5600]).forEach((x,i)=> trees.push({x, y:BAND_TOP-6+(i%3)*10}));
+  if(!dense) for(let i=0;i<26;i++) holes.push({x:150+rnd()*(WORLD_W-320), y:BAND_TOP-30+rnd()*(BAND_BOT-BAND_TOP+60), r:8+rnd()*20});
+}
+
+let banners=[], hints=[];
+let bannerIdx=0, bannerQueue=[], bannerCur=null, bannerT=0, checkpoint={x:150,y:390};
+let ARENA={a:4460,b:5340};
+
+function loadPanel(n){
+  panel=n; bridges=[]; drains=[]; skeins=[]; pins=[];
+  eyelets=[]; gates=[]; dyepots=[]; gaps=[]; cocoon=null;
+  p1.dye=null; p2.dye=null;
+  bossDone=false; gateOn=false; gnarl=null; glutton=null;
+  king=null; loom=null; sm=null; defense={active:false,wave:0,rest:0,between:false,kingSeen:false};
+  bannerIdx=0; bannerQueue=[]; bannerCur=null;
+  if(n===1){
+    pits=[ {x:3150,w:130}, {x:3520,w:230} ];
+    anchors=[
+      {x:3138,y:346,pit:0},{x:3292,y:346,pit:0},
+      {x:3508,y:300,pit:1},{x:3762,y:300,pit:1},
+      {x:3508,y:478,pit:1},{x:3762,y:478,pit:1},
+    ];
+    ARENA={a:4460,b:5340};
+    banners=[
+      {x:150,  lines:['The Seamstress wove the world in one unbroken thread.']},
+      {x:430,  lines:['Then she set down her needle,','and the moths came.']},
+      {x:720,  lines:['Two threads refused to be eaten.','The first she named Thimble, for it turned her needle.','The second she named Fray, for it would not lie flat.']},
+      {x:1680, lines:['The border villages are half linen now.','What the moths chew, the world forgets.']},
+      {x:2200, lines:['Strike as one.','Two threads cross, and the stitch holds.']},
+      {x:2980, lines:['The Gnarl tore the road behind it.','Spend your own thread to mend the way.','Then mend each other.']},
+      {x:4330, lines:['THE GNARL.','Every thread it steals, it ties into itself.','Circle it. Find its loose end.']},
+    ];
+    hints=[
+      {x:230,y:BAND_TOP-26, t:'WASD moves THIMBLE · Arrows move FRAY'},
+      {x:1180,y:BAND_TOP-26,t:'F and L strike · stand close and hold R + K to mend one another'},
+      {x:3210,y:BAND_TOP-26,t:'stand on a brass button · press R or K to cast a bridge · it costs your own thread'},
+      {x:5460,y:BAND_TOP-26,t:'the Selvage Gate lies ahead'},
+    ];
+    scatter(9,true);
+  } else if(n===2){
+    pits=[ {x:2350,w:150},{x:2720,w:150},{x:4050,w:260} ];
+    anchors=[
+      {x:2338,y:300,pit:0},{x:2512,y:300,pit:0},
+      {x:2708,y:480,pit:1},{x:2882,y:480,pit:1},
+      {x:4038,y:330,pit:2},{x:4322,y:330,pit:2},
+      {x:4038,y:470,pit:2},{x:4322,y:470,pit:2},
+    ];
+    ARENA={a:4900,b:5780};
+    drains=[ {x:1520,y:330,rx:190,ry:95},{x:3320,y:430,rx:170,ry:85},{x:4700,y:340,rx:150,ry:100} ];
+    skeins=[ {x:920,y:300,amt:18},{x:1980,y:470,amt:18},{x:3060,y:280,amt:18},{x:3910,y:500,amt:18},{x:4640,y:260,amt:18},{x:5980,y:390,amt:22} ];
+    pins=[ {x:5060,y:300},{x:5060,y:480},{x:5620,y:390} ];
+    banners=[
+      {x:150, lines:['PANEL TWO: THE PALE','Past the Selvage, color is a rumor.']},
+      {x:640, lines:['The Moth Court does not hate the world.','It is only hungry. The world is only food.']},
+      {x:1200,lines:['Thieves fly ahead of the Court.','What they steal from you, they carry home.','Cut them down and take it back.']},
+      {x:3220,lines:['The cloth here is eaten thin.','Keep moving.']},
+      {x:4840,lines:['THE GLUTTON, herald of the Court.','It has eaten so much world it dreams in color.','When it breathes in, hold to the steel pins.']},
+    ];
+    hints=[
+      {x:2380,y:BAND_TOP-26,t:'the tears stagger · cast high, then cast low'},
+      {x:5000,y:BAND_TOP-26,t:'steel pins hold fast when the Glutton breathes in'},
+    ];
+    scatter(23,false);
+  } else if(n===3){
+    pits=[ {x:3450,w:200},{x:3740,w:200} ];
+    anchors=[
+      {x:3438,y:300,pit:0},{x:3662,y:300,pit:0},
+      {x:3728,y:480,pit:1},{x:3952,y:480,pit:1},
+    ];
+    ARENA={a:99999,b:99999};
+    drains=[ {x:4300,y:380,rx:140,ry:80} ];
+    skeins=[ {x:700,y:470,amt:16},{x:1600,y:300,amt:16},{x:2900,y:460,amt:16},{x:3300,y:280,amt:16},{x:4400,y:470,amt:16},{x:5200,y:300,amt:16} ];
+    gates=[
+      {id:0,x:900, kind:'eyelet', open:false},
+      {id:1,x:2700,kind:'sampler',open:false},
+      {id:2,x:5000,kind:'eyelet', open:false},
+    ];
+    eyelets=[
+      {x:820,y:300,gate:0,heldT:0},{x:820,y:480,gate:0,heldT:0},
+      {x:4920,y:300,gate:2,heldT:0},{x:4920,y:480,gate:2,heldT:0},
+    ];
+    dyepots=[
+      {x:1900,y:280,name:'indigo',c:INDIGO_L},
+      {x:2050,y:470,name:'madder',c:MADDER_L},
+      {x:2200,y:280,name:'gold',  c:GOLD_L},
+    ];
+    gaps=[
+      {x:2560,y:330,need:'indigo',c:INDIGO_L,filled:false},
+      {x:2600,y:400,need:'madder',c:MADDER_L,filled:false},
+      {x:2640,y:470,need:'gold',  c:GOLD_L,  filled:false},
+    ];
+    cocoon={x:5750,y:390,layers:6,prog:0,done:false};
+    banners=[
+      {x:150, lines:['PANEL THREE: THE INNER BORDER','The Court keeps its treasures close to the Loom.']},
+      {x:520, lines:['Hedges of blackwork lace every road.','They open for two, and only for two.']},
+      {x:1750,lines:['The Seamstress dyed her borders three times.','The pattern remembers what the moths ate.']},
+      {x:3350,lines:['The Great Tear. Even the Court will not cross it.','An island of old cloth waits in the middle.']},
+      {x:4650,lines:['Moths thicken here.','The lace still opens for two, held fast.']},
+      {x:5350,lines:['THE COCOON.','They wrapped her in everything they stole.','Walk the thread. Wind her free.']},
+    ];
+    hints=[
+      {x:840,y:BAND_TOP-26,t:'stand in the eyelets · one thread each · the lace opens for two'},
+      {x:1980,y:BAND_TOP-26,t:'dip in a dye pot · carry its color to the empty pattern · press R or K to stitch it in'},
+      {x:3480,y:BAND_TOP-26,t:'the island holds old buttons · cast to it, cross, cast again'},
+      {x:5560,y:BAND_TOP-26,t:'circle her together · the thread winds twice as fast'},
+    ];
+    scatter(41,false);
+  }
+  if(n===4){
+    pits=[ {x:2600,w:180} ];
+    anchors=[ {x:2588,y:340,pit:0},{x:2792,y:340,pit:0} ];
+    ARENA={a:4650,b:6100};
+    drains=[ {x:1700,y:380,rx:150,ry:85} ];
+    skeins=[ {x:800,y:300,amt:16},{x:2100,y:470,amt:16},{x:3000,y:300,amt:16},{x:3900,y:460,amt:16},{x:4400,y:300,amt:16} ];
+    gates=[ {id:0,x:3300,kind:'eyelet',open:false} ];
+    eyelets=[ {x:3220,y:300,gate:0,heldT:0},{x:3220,y:480,gate:0,heldT:0} ];
+    loom={x:5350,y:390,hp:100,max:100};
+    sm={x:5430,y:390,t:0,dartCd:3,pinCd:8,fx:[]};
+    banners=[
+      {x:150, lines:['PANEL FOUR: THE LOOM OF DAYS','Every thread in the world begins here.']},
+      {x:900, lines:['She walks ahead of you now, needle bright.','You have never seen her hurry before.']},
+      {x:2200,lines:['The Court is already feeding on the outer warp.','What they eat here is not cloth. It is days.']},
+      {x:3600,lines:['Hold the Loom.','She cannot stitch the world and fight it too.']},
+    ];
+    hints=[
+      {x:3240,y:BAND_TOP-26,t:'the lace opens for two, still'},
+      {x:4700,y:BAND_TOP-26,t:'keep the Court off the Loom · stand near her and she reknots you'},
+    ];
+    scatter(57,true);
+  }
+  if(n>1){
+    p1.x=90; p1.y=360; p2.x=90; p2.y=430; p1.trail=[]; p2.trail=[];
+    p1.down=false; p2.down=false;
+    p1.hp=Math.min(100,p1.hp+30); p2.hp=Math.min(100,p2.hp+30);
+  }
+  checkpoint={x:150,y:390};
+  camX=0;
+  maskG.globalCompositeOperation='source-over';
+  maskG.clearRect(0,0,maskC.width,maskC.height);
+  reveal(200,390,260);
+  spawnWave();
+}
+
+/* ---------- players ---------- */
+function makePlayer(name,x,y,c1,c2,ctl){
+  return {name,x,y,c1,c2,ctl, hp:100, maxhp:100, fx:1, fy:0, vx:0, vy:0,
+    atkCd:0, swing:0, mendT:0, channel:false, down:false, reviveT:0, bumpT:0,
+    inv:0, walk:0, trail:[], lastHit:0, castFlash:0};
+}
+const p1 = makePlayer('THIMBLE', 160, 360, INDIGO, INDIGO_L, {u:'w',d:'s',l:'a',r:'d',atk:'f',act:'r'});
+const p2 = makePlayer('FRAY', 160, 430, MADDER, MADDER_L, {u:'arrowup',d:'arrowdown',l:'arrowleft',r:'arrowright',atk:'l',act:'k'});
+const players=[p1,p2];
+let solo=false;
+
+/* ---------- enemies ---------- */
+let enemies=[], gnarl=null, glutton=null, bossDone=false, gateOn=false;
+let king=null, loom=null, sm=null, defense={active:false,wave:0,rest:0,between:false,kingSeen:false};
+function larva(x,y){ return {kind:'larva',x,y,hp:3,max:3,t:Math.random()*6,vx:0,vy:0,hitT:0,lastHitBy:null,lastHitAt:0,dead:0}; }
+function moth(x,y){ return {kind:'moth',x,y,hx:x,hy:y,hp:2,max:2,t:Math.random()*6,dive:0,tx:0,ty:0,hitT:0,lastHitBy:null,lastHitAt:0,dead:0}; }
+function thief(x,y){ return {kind:'thief',x,y,hx:x,hy:y,hp:3,max:3,t:Math.random()*6,dive:0,cool:0,tx:0,ty:0,carry:0,fleeDir:1,hitT:0,lastHitBy:null,lastHitAt:0,dead:0}; }
+function spawnWave(){
+  enemies=[];
+  if(panel===1){
+    [[1820,300],[1960,470],[2110,380],[2620,320],[2760,460]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    [[2320,280],[2520,330],[3940,300],[4080,430]].forEach(a=>enemies.push(moth(a[0],a[1])));
+    // the torn crossing is patrolled: cast and mend under fire
+    [[3215,320],[3560,290],[3690,460]].forEach(a=>enemies.push(moth(a[0],a[1])));
+    [[3900,480],[4060,340]].forEach(a=>enemies.push(larva(a[0],a[1])));
+  } else if(panel===2){
+    [[820,320],[1750,460],[3120,340],[3860,480],[4530,300]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    [[1250,300],[1450,420],[2560,300],[2980,470],[4420,430]].forEach(a=>enemies.push(thief(a[0],a[1])));
+    [[2430,470],[2800,300],[3620,320],[4180,260]].forEach(a=>enemies.push(moth(a[0],a[1])));
+  } else if(panel===3){
+    [[1100,340],[1450,460],[2350,320],[2900,300],[3200,480]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    [[2450,470],[3050,300],[4700,320],[4830,460],[5100,390]].forEach(a=>enemies.push(moth(a[0],a[1])));
+    [[1300,400],[4500,300],[5450,300],[5650,470]].forEach(a=>enemies.push(thief(a[0],a[1])));
+  } else {
+    [[1200,340],[2450,470],[3700,320]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    [[2000,300],[3500,460],[4200,340]].forEach(a=>enemies.push(moth(a[0],a[1])));
+    enemies.push(thief(3100,300));
+  }
+}
+function spawnDefWave(w){
+  const L=4700,R=6040;
+  if(w===1){ [[L,300],[L,470],[R,340],[R,480],[R,260]].forEach(a=>enemies.push(larva(a[0],a[1]))); }
+  else if(w===2){ [[L,320],[L,460],[R,300],[R,480]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    [[L,260],[R,280],[R,440]].forEach(a=>enemies.push(moth(a[0],a[1]))); }
+  else if(w===3){ [[L,300],[R,320],[R,470]].forEach(a=>enemies.push(thief(a[0],a[1])));
+    [[L,440],[L,260],[R,380]].forEach(a=>enemies.push(moth(a[0],a[1]))); }
+  else if(w===4){ [[L,300],[L,470],[R,340],[R,470]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    [[L,260],[L,400],[R,260],[R,430]].forEach(a=>enemies.push(moth(a[0],a[1])));
+    [[L,340],[R,300]].forEach(a=>enemies.push(thief(a[0],a[1]))); }
+  else { king=makeKing();
+    [[L,340],[R,420]].forEach(a=>enemies.push(larva(a[0],a[1])));
+    if(!defense.kingSeen){ defense.kingSeen=true;
+      bannerQueue.push({lines:['THE MOTH KING.','It remembers being a prince of the daylight.','Her needle will pin its wing. Strike while it is held.']}); } }
+}
+function waveRestart(msg){
+  enemies=[]; king=null;
+  if(loom) loom.hp=Math.max(60,loom.hp);
+  Object.assign(p1,{x:5150,y:360,hp:70,down:false,inv:1.5,trail:[]});
+  Object.assign(p2,{x:5150,y:430,hp:70,down:false,inv:1.5,trail:[]});
+  spawnDefWave(defense.wave);
+  toast(msg);
+}
+function makeGnarl(){ return {x:4900,y:390,hp:6,max:6,aggro:p1,speed:46,t:0,hitT:0,looseT:0,dead:0}; }
+function makeGlutton(){ return {x:5340,y:380,hp:8,max:8,phase:'hover',pt:0,t:0,hitT:0,cycle:0,dead:0}; }
+function makeKing(){ return {x:5350,y:300,hp:8,max:8,t:0,pt:0,phase:'fly',hitT:0,sumCd:6,dead:0}; }
+
+/* ---------- state ---------- */
+let state='title'; // title | play | end
+let camX=0, time=0, toastMsg=null, toastT=0;
+let stats={unpicked:0, spent:0, cast:0, mended:0};
+let floaters=[];
+
+function toast(m){ toastMsg=m; toastT=3.2; }
+function floatMark(x,y,c,txt){ floaters.push({x,y,c,txt,t:1}); }
+
+function resetGame(){
+  Object.assign(p1,{x:checkpoint.x,y:checkpoint.y-30,hp:70,down:false,mendT:0,inv:1.5,trail:[]});
+  Object.assign(p2,{x:checkpoint.x,y:checkpoint.y+30,hp:70,down:false,mendT:0,inv:1.5,trail:[]});
+}
+function newGame(){
+  state='play';
+  if(mobile) solo=true;
+  stats={unpicked:0,spent:0,cast:0,mended:0};
+  Object.assign(p1,{x:160,y:360,hp:100,down:false,trail:[]});
+  Object.assign(p2,{x:160,y:430,hp:100,down:false,trail:[]});
+  loadPanel(1);
+}
+function onEnter(){ if(state!=='play'){ ac(); newGame(); sChime(); } }
+
+/* ============================================================
+   UPDATE
+   ============================================================ */
+function overPit(e){ return pits.findIndex(p=> e.x>p.x && e.x<p.x+p.w ); }
+function onBridge(e){
+  for(const b of bridges) if(e.x>b.x1-6 && e.x<b.x2+6 && Math.abs(e.y-b.y)<15) return b;
+  return null;
+}
+
+function controlPlayer(p,dt){
+  if(p.down){
+    // partner revive
+    const o = p===p1?p2:p1;
+    if(!o.down && dist(p,o)<42 && (actPressed(o) || (solo&&o===p2))){
+      p.reviveT += dt;
+      if(p.reviveT>2.4){ p.down=false; p.hp=50; p.reviveT=0; sRevive(); floatMark(p.x,p.y-30,GOLD,'restitched'); }
+    } else p.reviveT=Math.max(0,p.reviveT-dt*2);
+    return;
+  }
+  let mx=0,my=0;
+  const aiThis = solo && p===p2;
+  if(!aiThis){
+    if(keys[p.ctl.u])my--; if(keys[p.ctl.d])my++;
+    if(keys[p.ctl.l])mx--; if(keys[p.ctl.r])mx++;
+    if(mobile && p===p1 && joy.active && Math.hypot(joy.dx,joy.dy)>7){ mx=joy.dx/52; my=joy.dy/52; }
+  } else {
+    // companion AI
+    const o=p1;
+    let target=null;
+    if(gnarl && !gnarl.dead && gnarl.aggro===o){
+      target={x:gnarl.x - (o.x-gnarl.x>0?1:-1)*60, y:gnarl.y};
+      const le=looseEndPos(); if(dist(p,le)<50 && p.atkCd<=0){ hitLooseEnd(p); }
+    }
+    if(glutton && !glutton.dead){
+      if(glutton.phase==='inhale'){ let bp=pins[0],bd=1e9; for(const pin of pins){const d=dist(p,pin); if(d<bd){bd=d;bp=pin;}} target=bp; }
+      else if(glutton.phase==='rest'){ target={x:glutton.x-46,y:glutton.y}; if(dist(p,glutton)<62&&p.atkCd<=0) doAttack(p); }
+    }
+    if(king && !king.dead && (king.phase==='pinned'||king.phase==='swoop')){
+      target={x:king.x-40,y:king.y};
+      if(dist(p,king)<58 && p.atkCd<=0) doAttack(p);
+    }
+    if(cocoon && !cocoon.done && dist(o,cocoon)<260){
+      p.orb=(p.orb||0)+dt*1.5;
+      target={x:cocoon.x+Math.cos(p.orb)*105, y:clamp(cocoon.y+Math.sin(p.orb)*105,BAND_TOP,BAND_BOT)};
+    }
+    if(!target){
+      for(const gt of gates){
+        if(gt.open || gt.kind!=='eyelet') continue;
+        const es=eyelets.filter(e=>e.gate===gt.id);
+        if(es.length===2 && Math.abs(o.x-gt.x)<420){
+          const oOn = es.find(e=>dist(o,e)<26);
+          if(oOn){ target = es.find(e=>e!==oOn); break; }
+        }
+      }
+    }
+    if(!target){
+      let best=null,bd=120;
+      for(const e of enemies){ if(e.dead)continue; const d=dist(p,e); if(d<bd){bd=d;best=e;} }
+      if(best && dist(o,best)<300){ target=best; if(dist(p,best)<40&&p.atkCd<=0) doAttack(p); }
+      else if(dist(p,o)>52) target=o;
+    }
+    p.aiAct = (o.channel && dist(p,o)<60);
+    if(o.down){ target=o; if(dist(p,o)<40){ /* handled in down branch */ } }
+    if(target){ const d=dist(p,target)||1; mx=(target.x-p.x)/d; my=(target.y-p.y)/d; if(d<30){mx=0;my=0;} }
+    if(dist(p,o)>270){ p.x=o.x-24; p.y=o.y; p.trail=[]; }
+  }
+  const sp = p.channel?0: 132;
+  const l=Math.hypot(mx,my)||1;
+  p.vx=mx/l*sp; p.vy=my/l*sp;
+  if(mx||my){ p.fx=mx/l; p.fy=my/l; p.walk+=dt*9; }
+  p.x+=p.vx*dt; p.y+=p.vy*dt;
+  p.y=clamp(p.y,BAND_TOP,BAND_BOT);
+  p.x=clamp(p.x, camX+18, camX+VW-18);
+  p.x=clamp(p.x, 20, WORLD_W-20);
+  if(gateOn){ p.x=clamp(p.x, ARENA.a+14, ARENA.b-14); }
+  for(const gt of gates) if(!gt.open && Math.abs(p.x-gt.x)<16) p.x = p.x<gt.x? gt.x-16 : gt.x+16;
+
+  // torn cloth: impassable unless bridged
+  const pi=overPit(p);
+  if(pi>=0){
+    const b=onBridge(p);
+    if(b){ p.y=lerp(p.y,b.y,0.4); }
+    else {
+      const pit=pits[pi];
+      p.x = p.x < pit.x+pit.w/2 ? pit.x-1 : pit.x+pit.w+1;
+      const nb = bridges.find(br=>br.pitRef===pi && Math.abs(p.y-br.y)<48);
+      if(nb) p.y=lerp(p.y,nb.y,0.15);
+      if(p.bumpT<=0){ p.bumpT=1.8; sTick();
+        floatMark(p.x,p.y-24,CHARCOAL,"the torn cloth won't hold you"); }
+    }
+  }
+
+  // trail
+  if((mx||my) && (!p.trail.length || dist(p,p.trail[p.trail.length-1])>13))
+    { p.trail.push({x:p.x,y:p.y,t:5}); if(p.trail.length>46)p.trail.shift(); }
+
+  // attack
+  if(p.atkCd>0)p.atkCd-=dt;
+  if(p.swing>0)p.swing-=dt;
+  if(!aiThis && atkPressed(p) && p.atkCd<=0) doAttack(p);
+
+  // stitch action: mend / cast / (revive handled above)
+  const actKey = aiThis? p.aiAct : actPressed(p);
+  p.channel=false;
+  if(actKey && !p.down){
+    // anchor cast?
+    const an = anchors.find(a=>dist(p,a)<20);
+    if(an && p.castFlash<=0){
+      const mate = anchors.find(a=>a!==an && a.pit===an.pit && a.y===an.y);
+      const exists = bridges.some(b=>b.y===an.y && b.pitRef===an.pit);
+      if(mate && !exists){
+        const cost = Math.round(Math.abs(mate.x-an.x)/9);
+        if(p.hp>cost+12){
+          p.hp-=cost; stats.spent+=cost; stats.cast++;
+          bridges.push({x1:Math.min(an.x,mate.x),x2:Math.max(an.x,mate.x),y:an.y,pitRef:an.pit,age:0});
+          sCast(); p.castFlash=1;
+          floatMark(p.x,p.y-26,GOLD,'-'+cost+' thread');
+        } else { floatMark(p.x,p.y-26,MADDER,'not enough thread'); p.castFlash=1; sThud(); }
+      }
+    }
+    // sampler gap?
+    const gp = gaps.find(gg=>!gg.filled && dist(p,gg)<22);
+    if(gp && p.castFlash<=0){
+      if(p.dye && p.dye.name===gp.need){
+        gp.filled=true; p.castFlash=1; sPluck(520);
+        floatMark(gp.x,gp.y-20,gp.c,'the pattern remembers');
+        if(gaps.every(x=>x.filled)){
+          gates.forEach(gt=>{ if(gt.kind==='sampler'&&!gt.open){ gt.open=true; sGate();
+            floatMark(gt.x,340,GOLD,'the border completes · the way opens'); } });
+        }
+      } else { p.castFlash=1; sThud();
+        floatMark(p.x,p.y-24,CHARCOAL, p.dye? 'wrong color for this stitch':'you carry no dye'); }
+    }
+    // mend
+    const o = p===p1?p2:p1;
+    if(!o.down && dist(p,o)<48){
+      p.channel=true;
+      const oAct = o===p2&&solo ? true : actPressed(o);
+      if(oAct||o.channel){
+        const rate=11*dt;
+        if(p.hp<p.maxhp||o.hp<o.maxhp){
+          p.hp=Math.min(p.maxhp,p.hp+rate); o.hp=Math.min(o.maxhp,o.hp+rate);
+          stats.mended+=rate;
+          if(Math.random()<dt*7) sTick();
+        }
+      }
+    }
+  }
+  if(p.castFlash>0)p.castFlash-=dt;
+  if(p.inv>0)p.inv-=dt;
+  if(p.bumpT>0)p.bumpT-=dt;
+  if(p.hp<=0 && !p.down){ p.down=true; p.hp=0; sDown(); shake=8; floatMark(p.x,p.y-28,MADDER,p.name+' comes undone'); }
+}
+
+function doAttack(p){
+  p.atkCd=0.42; p.swing=0.18; sSwing(); pluck(p===p1?294:330,null,0.05,0.2);
+  const rx=p.x+p.fx*26, ry=p.y+p.fy*26;
+  for(const e of enemies){
+    if(e.dead) continue;
+    if(Math.hypot(e.x-rx,e.y-ry)<34) hitEnemy(e,p,1);
+  }
+  if(gnarl && !gnarl.dead){
+    const le=looseEndPos();
+    if(Math.hypot(le.x-rx,le.y-ry)<36){ hitLooseEnd(p); }
+    else if(Math.hypot(gnarl.x-rx,gnarl.y-ry)<52){
+      gnarl.aggro=p; gnarl.hitT=0.2; sThud(); floatMark(gnarl.x,gnarl.y-52,CHARCOAL,'the knot tightens on '+p.name);
+    }
+  }
+  if(glutton && !glutton.dead){
+    if(Math.hypot(glutton.x-rx,glutton.y-ry)<64){
+      if(glutton.phase==='rest') hitGlutton(p);
+      else { sThud(); floatMark(glutton.x,glutton.y-70,CHARCOAL,'its hide turns the needle'); }
+    }
+  }
+  if(king && !king.dead){
+    if(Math.hypot(king.x-rx,king.y-ry)<56){
+      if(king.phase==='pinned'){ hitKing(p); }
+      else if(king.phase==='swoop'){ hitKing(p); king.phase='stagger'; king.pt=0; floatMark(king.x,king.y-60,GOLD,'driven off the Loom'); }
+      else { sThud(); floatMark(king.x,king.y-60,CHARCOAL,'its wings turn the needle'); }
+    }
+  }
+}
+function hitKing(p){
+  if(king.hitT>0.2) return;
+  king.hp--; king.hitT=0.3; sUnravel(); shake=6;
+  floatMark(king.x,king.y-64,GOLD,'the crown frays ('+king.hp+' left)');
+  if(king.hp<=0){
+    king.dead=0.001; bossDone=true; gateOn=false; stats.unpicked++;
+    p1.hp=100; p2.hp=100; if(loom) loom.hp=Math.min(loom.max,loom.hp+30);
+    bannerQueue.push({lines:['The King comes apart into a thousand grey moths.','They scatter. They do not return.']});
+    bannerQueue.push({lines:['Where the blank was, color comes back like morning.','The road behind you is already blooming.']});
+    sVictory();
+  }
+}
+function hitEnemy(e,p,dmg){
+  const now=time;
+  // cross-stitch combo
+  if(e.lastHitBy && e.lastHitBy!==p && now-e.lastHitAt<0.8){
+    dmg+=2; floatMark(e.x,e.y-22,GOLD,'cross-stitch!'); crossFx.push({x:e.x,y:e.y,t:0.5}); sChime();
+  }
+  e.lastHitBy=p; e.lastHitAt=now;
+  e.hp-=dmg; e.hitT=0.18; sTick();
+  if(e.hp<=0 && !e.dead){ e.dead=0.001; stats.unpicked++; sUnravel();
+    if(e.kind==='thief'){
+      if(panel===4 && loom && defense.active){ loom.hp=Math.min(loom.max,loom.hp+12+(e.carry||0)); floatMark(e.x,e.y-20,GOLD,'the thread runs home to the Loom'); }
+      else { skeins.push({x:e.x, y:clamp(e.y,BAND_TOP,BAND_BOT), amt:12+(e.carry||0)}); floatMark(e.x,e.y-20,GOLD,'the stolen thread falls'); }
+    }
+  }
+}
+let crossFx=[];
+
+function looseEndPos(){
+  const a=gnarl.aggro, d=Math.hypot(gnarl.x-a.x,gnarl.y-a.y)||1;
+  return {x:gnarl.x+(gnarl.x-a.x)/d*54, y:gnarl.y+(gnarl.y-a.y)/d*54};
+}
+function hitLooseEnd(p){
+  if(gnarl.looseT>0) return;
+  gnarl.hp--; gnarl.looseT=0.6; p.atkCd=0.42; p.swing=0.18;
+  sUnravel(); shake=7;
+  floatMark(gnarl.x,gnarl.y-56,GOLD,'a coil comes loose ('+gnarl.hp+' left)');
+  gnarl.speed+=12;
+  if(gnarl.hp===4||gnarl.hp===2){
+    enemies.push(larva(gnarl.x-70,gnarl.y-40), larva(gnarl.x+70,gnarl.y+40));
+  }
+  if(gnarl.hp<=0){
+    gnarl.dead=0.001; bossDone=true; gateOn=false; stats.unpicked++;
+    p1.hp=Math.min(100,p1.hp+40); p2.hp=Math.min(100,p2.hp+40);
+    bannerQueue.push({lines:['The Gnarl came apart the way all knots do.','One pull at a time.']});
+    sVictory();
+  }
+}
+
+function hitGlutton(p){
+  const g=glutton;
+  if(g.hitT>0.25) return;
+  g.hp--; g.hitT=0.35; sUnravel(); shake=7;
+  floatMark(g.x,g.y-70,GOLD,'a seam splits ('+g.hp+' left)');
+  if(g.hp<=0){
+    g.dead=0.001; bossDone=true; gateOn=false; stats.unpicked++;
+    p1.hp=100; p2.hp=100;
+    for(let i=0;i<10;i++) crossFx.push({x:g.x+(Math.random()-0.5)*160,y:g.y+(Math.random()-0.5)*120,t:0.5+Math.random()*0.5});
+    bannerQueue.push({lines:['The Glutton split at the seam.','The colors it swallowed run home to the cloth.']});
+    sVictory();
+  }
+}
+
+function updateEnemies(dt){
+  for(const e of enemies){
+    if(e.dead){ e.dead+=dt; continue; }
+    e.t+=dt; if(e.hitT>0)e.hitT-=dt;
+    const tgt = dist(e,p1)<dist(e,p2)&&!p1.down ? p1 : (!p2.down?p2:p1);
+    const defOn = panel===4 && defense.active && loom && !bossDone;
+    const goal = (defOn && dist(e,tgt)>110) ? loom : tgt;
+    if(e.kind==='larva'){
+      const d=dist(e,goal);
+      if(d<(defOn?9999:230) && d>4){ e.x+=(goal.x-e.x)/d*42*dt; e.y+=(goal.y-e.y)/d*42*dt; }
+      e.y=clamp(e.y,BAND_TOP,BAND_BOT);
+      if(dist(e,tgt)<20 && tgt.inv<=0 && !tgt.down){ tgt.hp-=8; tgt.inv=1; sHurt(); shake=5; }
+      if(defOn && dist(e,loom)<34){ loom.hp-=3*dt; if(Math.random()<dt) floatMark(loom.x,loom.y-70,MADDER,'they chew the warp'); }
+    } else if(e.kind==='moth'){
+      e.dive-=dt;
+      if(e.dive<=0 && (defOn || dist(e,tgt)<260)){ e.dive=2.6; e.tx=goal.x; e.ty=goal.y; }
+      if(e.dive>1.9){ const d=Math.hypot(e.tx-e.x,e.ty-e.y)||1; e.x+=(e.tx-e.x)/d*250*dt; e.y+=(e.ty-e.y)/d*250*dt; }
+      else { e.x=lerp(e.x,e.hx,0.4*dt); e.y=e.hy+Math.sin(e.t*2.2)*26; }
+      if(dist(e,tgt)<18 && tgt.inv<=0 && !tgt.down){ tgt.hp-=10; tgt.inv=1; sHurt(); shake=5; }
+      if(defOn && dist(e,loom)<30){ loom.hp-=3*dt; }
+    } else { // thief
+      e.cool-=dt; e.dive-=dt;
+      if(e.cool>0){
+        e.x+=(Math.sin(e.t*3)*20 + 34*e.fleeDir)*dt; e.y-=42*dt;
+        if(e.y<BAND_TOP-14) e.y=BAND_TOP-14;
+      } else {
+        const defOn2 = panel===4 && defense.active && loom && !bossDone;
+        const th = defOn2 ? loom : tgt;
+        if(e.dive<=0 && (defOn2 || dist(e,th)<280)){ e.dive=3; e.tx=th.x; e.ty=th.y; }
+        if(e.dive>2.2){ const d=Math.hypot(e.tx-e.x,e.ty-e.y)||1; e.x+=(e.tx-e.x)/d*235*dt; e.y+=(e.ty-e.y)/d*235*dt; }
+        else { e.x=lerp(e.x,e.hx,0.35*dt); e.y=e.hy+Math.sin(e.t*2)*24; }
+        if(defOn2 && dist(e,loom)<26){
+          loom.hp-=10; e.carry+=10; e.cool=2.6; e.fleeDir=(e.x<loom.x?-1:1);
+          sHurt(); shake=4; floatMark(loom.x,loom.y-70,MOTHGRY_D,'-10 thread stolen from the Loom');
+        } else if(dist(e,tgt)<18 && tgt.inv<=0 && !tgt.down){
+          const take=Math.min(8, Math.max(0,Math.floor(tgt.hp)-1));
+          tgt.hp-=take; e.carry+=take; tgt.inv=1; e.cool=2.6; e.fleeDir=(e.x<tgt.x?1:-1);
+          sHurt(); shake=4; floatMark(tgt.x,tgt.y-24,MOTHGRY_D,'-'+take+' thread stolen');
+        }
+      }
+    }
+  }
+  enemies=enemies.filter(e=>!e.dead || e.dead<0.6);
+
+  if(gnarl && !gnarl.dead){
+    gnarl.t+=dt; if(gnarl.hitT>0)gnarl.hitT-=dt; if(gnarl.looseT>0)gnarl.looseT-=dt;
+    if(gnarl.aggro.down) gnarl.aggro = gnarl.aggro===p1?p2:p1;
+    const a=gnarl.aggro, d=dist(gnarl,a)||1;
+    if(d>40){ gnarl.x+=(a.x-gnarl.x)/d*gnarl.speed*dt; gnarl.y+=(a.y-gnarl.y)/d*gnarl.speed*dt; }
+    gnarl.y=clamp(gnarl.y,BAND_TOP+20,BAND_BOT-20);
+    for(const p of players) if(dist(gnarl,p)<44 && p.inv<=0 && !p.down){ p.hp-=14; p.inv=1.1; sHurt(); shake=8; }
+  }
+  if(gnarl && gnarl.dead) gnarl.dead+=dt;
+
+  if(glutton && !glutton.dead){
+    const g=glutton; g.t+=dt; g.pt+=dt; if(g.hitT>0)g.hitT-=dt;
+    if(g.phase==='hover'){
+      g.x=5340+Math.sin(g.t*0.6)*150; g.y=380+Math.sin(g.t*1.15)*55;
+      if(g.pt>4){ g.phase='inhale'; g.pt=0; sInhale(); shake=5;
+        if(g.cycle%2===1) enemies.push(thief(g.x-130,g.y-50), thief(g.x+130,g.y+40));
+        g.cycle++; }
+    } else if(g.phase==='inhale'){
+      const pulling = g.pt>0.8;
+      for(const p of players){
+        if(p.down) continue;
+        let held=null, hd=1e9;
+        for(const pin of pins){ const d=dist(p,pin); if(d<hd){hd=d; held=pin;} }
+        if(held && hd<38){ p.x=lerp(p.x,held.x,0.3); p.y=lerp(p.y,held.y,0.3); continue; }
+        if(!pulling) continue;
+        const d=dist(g,p)||1;
+        p.x+=(g.x-p.x)/d*100*dt; p.y+=(g.y-p.y)/d*100*dt;
+        p.y=clamp(p.y,BAND_TOP,BAND_BOT);
+        if(d<50 && p.inv<=0){ p.hp-=16; p.inv=1.3; sHurt(); shake=9;
+          p.x=g.x+(p.x<g.x?-150:150); floatMark(g.x,g.y-70,MADDER,'spat out'); }
+      }
+      if(pulling) for(const e of enemies){ if(!e.dead && dist(e,g)<46) e.dead=0.001; }
+      if(g.pt>3.0){ g.phase='rest'; g.pt=0; sRest(); floatMark(g.x,g.y-74,GOLD,'it rests · strike the seam'); }
+    } else {
+      if(g.pt>3.2){ g.phase='hover'; g.pt=0; }
+    }
+  }
+  if(glutton && glutton.dead) glutton.dead+=dt;
+
+  if(king && !king.dead){
+    const k=king; k.t+=dt; k.pt+=dt; if(k.hitT>0)k.hitT-=dt;
+    k.sumCd-=dt;
+    if(k.sumCd<=0 && enemies.filter(e=>!e.dead).length<8){ k.sumCd=9;
+      enemies.push(larva(k.x-90,clamp(k.y+40,BAND_TOP,BAND_BOT)), larva(k.x+90,clamp(k.y-30,BAND_TOP,BAND_BOT))); }
+    if(k.phase==='fly'){
+      k.x=5350+Math.sin(k.t*0.5)*260; k.y=300+Math.sin(k.t*0.9)*60;
+      if(k.pt>5){ k.phase='swoop'; k.pt=0; }
+    } else if(k.phase==='swoop'){
+      const d=Math.hypot(loom.x-k.x, loom.y-k.y)||1;
+      if(d>36){ k.x+=(loom.x-k.x)/d*180*dt; k.y+=(loom.y-k.y)/d*180*dt; }
+      else { loom.hp-=6*dt; if(Math.random()<dt*2) floatMark(loom.x,loom.y-70,MADDER,'it chews the days'); }
+      for(const p of players) if(!p.down&&dist(k,p)<40&&p.inv<=0){ p.hp-=12; p.inv=1.1; sHurt(); shake=7; }
+      if(k.pt>7){ k.phase='fly'; k.pt=0; }
+    } else if(k.phase==='stagger'){
+      if(k.pt>1.4){ k.phase='fly'; k.pt=0; }
+    } else if(k.phase==='pinned'){
+      if(k.pt>4){ k.phase='fly'; k.pt=0; }
+    }
+  }
+  if(king && king.dead) king.dead+=dt;
+}
+
+function update(dt){
+  time+=dt;
+  controlPlayer(p1,dt); controlPlayer(p2,dt);
+  updateEnemies(dt);
+
+  // trails fade
+  for(const p of players){ for(const s of p.trail) s.t-=dt; p.trail=p.trail.filter(s=>s.t>0); }
+
+  // skeins and thin cloth
+  for(const p of players){
+    if(p.down) continue;
+    for(const s of skeins){ if(!s.got && dist(p,s)<20){ s.got=true; p.hp=Math.min(p.maxhp,p.hp+s.amt); sSkein(); floatMark(s.x,s.y-18,GOLD,'+'+s.amt+' thread'); } }
+    for(const dz of drains){
+      const ex=(p.x-dz.x)/dz.rx, ey=(p.y-dz.y)/dz.ry;
+      if(ex*ex+ey*ey<1){ p.hp=Math.max(1,p.hp-5*dt);
+        if(p.bumpT<=0){ p.bumpT=2.2; floatMark(p.x,p.y-24,MOTHGRY_D,'the cloth thins beneath you'); sTick(); } }
+    }
+  }
+  skeins=skeins.filter(s=>!s.got);
+
+  // eyelets and lace gates
+  for(const ey of eyelets){
+    ey.heldT=Math.max(0,ey.heldT-dt);
+    for(const p of players) if(!p.down && dist(p,ey)<22) ey.heldT=1.2;
+  }
+  for(const gt of gates){
+    if(gt.open || gt.kind!=='eyelet') continue;
+    const es=eyelets.filter(e=>e.gate===gt.id);
+    if(es.length && es.every(e=>e.heldT>0)){ gt.open=true; sGate(); floatMark(gt.x,BAND_TOP+60,GOLD,'the lace unhooks'); }
+  }
+  // dye pots
+  for(const p of players){
+    if(p.down) continue;
+    for(const dp of dyepots){
+      if(dist(p,dp)<18 && (!p.dye || p.dye.name!==dp.name)){
+        p.dye={name:dp.name,c:dp.c}; sDye();
+        floatMark(p.x,p.y-24,dp.c,'dipped in '+dp.name);
+      }
+    }
+  }
+  // the cocoon: walk the thread
+  if(cocoon && !cocoon.done){
+    let circlers=0, dprog=0;
+    for(const p of players){
+      if(p.down){ p.lastAng=undefined; continue; }
+      const dx=p.x-cocoon.x, dy=p.y-cocoon.y, r=Math.hypot(dx,dy);
+      const ang=Math.atan2(dy,dx);
+      if(r>60 && r<150){
+        if(p.lastAng!==undefined){
+          let da=ang-p.lastAng; if(da>Math.PI)da-=2*Math.PI; if(da<-Math.PI)da+=2*Math.PI;
+          if(Math.abs(da)>0.001 && Math.abs(da)<0.3){ dprog+=Math.abs(da); circlers++; }
+        }
+        p.lastAng=ang;
+      } else p.lastAng=undefined;
+    }
+    if(circlers>0){
+      cocoon.prog += dprog*(circlers>1?1.5:1);
+      if(Math.random()<dt*3*circlers) sTick();
+      if(cocoon.prog>7.5){
+        cocoon.prog=0; cocoon.layers--; sLayer(); shake=5;
+        if(cocoon.layers>0){
+          floatMark(cocoon.x,cocoon.y-90,GOLD,'a layer falls away ('+cocoon.layers+' left)');
+          enemies.push(moth(cocoon.x-160,cocoon.y-60), moth(cocoon.x+160,cocoon.y+50));
+        } else {
+          cocoon.done=true; bossDone=true;
+          p1.hp=100; p2.hp=100;
+          bannerQueue.push({lines:['The last thread falls. She opens her eyes.']});
+          bannerQueue.push({lines:['THE SEAMSTRESS','You held. Both of you. All this way.','Hand me my needle. The Court comes to the Loom.']});
+          for(let i=0;i<12;i++) crossFx.push({x:cocoon.x+(Math.random()-0.5)*200,y:cocoon.y+(Math.random()-0.5)*160,t:0.4+Math.random()*0.6});
+          sVictory();
+        }
+      }
+    }
+  }
+
+  // both down
+  if(p1.down && p2.down){
+    bannerQueue=[]; bannerCur=null;
+    if(panel===4 && defense.active && !bossDone){
+      waveRestart('Both threads cut. She ties you back before the Court can finish.');
+    } else {
+      toast('Both threads cut. The Seamstress ties you back at the last banner.');
+      resetGame();
+    }
+  }
+
+  // the Loom defense
+  if(panel===4 && defense.active && !bossDone){
+    if(loom.hp<=0){ waveRestart('The Loom frays to its last thread. She reknots it. Hold again.'); }
+    const alive = enemies.some(e=>!e.dead) || (king && !king.dead);
+    if(!alive){
+      if(!defense.between){ defense.between=true; defense.rest=4;
+        if(defense.wave<5){ p1.hp=Math.min(100,p1.hp+25); p2.hp=Math.min(100,p2.hp+25);
+          toast('the Court regroups · she reknots your ends'); } }
+      defense.rest-=dt;
+      if(defense.rest<=0){ defense.between=false; defense.wave++;
+        if(defense.wave<=5){ spawnDefWave(defense.wave); sWave();
+          toast('Wave the '+['First','Second','Third','Fourth','Last'][defense.wave-1]); } }
+    }
+  }
+  // the Seamstress
+  if(sm){
+    sm.t+=dt; sm.dartCd-=dt; sm.pinCd-=dt;
+    if(king && !king.dead && king.phase!=='pinned' && sm.pinCd<=0){
+      sm.pinCd=12; king.phase='pinned'; king.pt=0;
+      sm.fx.push({x1:sm.x,y1:sm.y-14,x2:king.x,y2:king.y,t:0.5});
+      sPin(); floatMark(king.x,king.y-70,GOLD,'her needle pins its wing · strike now');
+    } else if(sm.dartCd<=0 && defense.active && !bossDone){
+      let best=null,bd=380;
+      for(const e of enemies){ if(e.dead)continue; const d=dist(sm,e); if(d<bd){bd=d;best=e;} }
+      if(best){ sm.dartCd=6; sm.fx.push({x1:sm.x,y1:sm.y-14,x2:best.x,y2:best.y,t:0.4}); hitEnemy(best,sm,2); }
+      else sm.dartCd=1;
+    }
+    for(const f of sm.fx) f.t-=dt; sm.fx=sm.fx.filter(f=>f.t>0);
+    for(const p of players) if(!p.down && p.hp<60 && dist(p,sm)<60){
+      p.hp=Math.min(p.maxhp,p.hp+8*dt); if(Math.random()<dt*2) sTick(); }
+  }
+
+  // banners
+  while(bannerIdx<banners.length && Math.max(p1.x,p2.x)>banners[bannerIdx].x){
+    bannerQueue.push(banners[bannerIdx]);
+    checkpoint={x:banners[bannerIdx].x, y:390};
+    bannerIdx++;
+  }
+  if(!gnarl && !glutton && !bossDone && !defense.active && Math.min(p1.x,p2.x)>ARENA.a+30){
+    gateOn=true; sThud();
+    if(panel===1) gnarl=makeGnarl();
+    else if(panel===2) glutton=makeGlutton();
+    else if(panel===4){ defense.active=true; defense.wave=1; spawnDefWave(1); sWave(); toast('THE COURT DESCENDS · Wave the First'); }
+  }
+  if(!bannerCur && bannerQueue.length){ bannerCur=bannerQueue.shift(); bannerT=0; sChime(); }
+  if(bannerCur){ bannerT+=dt; if(bannerT>2.2+bannerCur.lines.length*1.6) bannerCur=null; }
+
+  // camera
+  const mid=(p1.x+p2.x)/2;
+  camX=lerp(camX, clamp(mid-VW/2, 0, WORLD_W-VW), 0.12);
+  if(gateOn) camX=clamp(camX, ARENA.a-40, ARENA.b+40-VW);
+
+  // reveal
+  reveal(p1.x,p1.y,150); reveal(p2.x,p2.y,150);
+
+  // floaters, fx, toast
+  for(const f of floaters) { f.t-=dt*0.55; f.y-=14*dt; }
+  floaters=floaters.filter(f=>f.t>0);
+  for(const c of crossFx) c.t-=dt;
+  crossFx=crossFx.filter(c=>c.t>0);
+  if(toastT>0){ toastT-=dt; if(toastT<=0) toastMsg=null; }
+  if(shake>0) shake=Math.max(0,shake-dt*30);
+
+  // ending
+  if(bossDone && Math.max(p1.x,p2.x)>6180 && state==='play'){
+    if(panel<4){ loadPanel(panel+1); sChime(); }
+    else { state='end'; sChime(); }
+  }
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function drawDecor(g,mode){
+  const chalk = mode==='chalk';
+  // path edges: chain stitch borders of the walking band
+  stitchLine(g, 0,BAND_TOP-14, WORLD_W,BAND_TOP-14, chalk?CHALK:MOSS_D, chalk?1.4:2.6, 12);
+  stitchLine(g, 0,BAND_BOT+14, WORLD_W,BAND_BOT+14, chalk?CHALK:MOSS_D, chalk?1.4:2.6, 12);
+  for(const t of tufts){
+    const c=chalk?CHALK:MOSS;
+    g.strokeStyle=c; g.lineWidth=chalk?1.2:2;
+    for(let i=-1;i<=1;i++){ g.beginPath(); g.moveTo(t.x+i*3,t.y); g.lineTo(t.x+i*5,t.y-8-t.r*.6); g.stroke(); }
+  }
+  for(const f of flowers){
+    const c=chalk?CHALK:f.c;
+    g.strokeStyle=c; g.lineWidth=chalk?1.2:2;
+    for(let a=0;a<6;a++){ const A=a/6*6.283;
+      g.beginPath(); g.ellipse(f.x+Math.cos(A)*5, f.y+Math.sin(A)*5, 4,2.2, A, 0,7); g.stroke(); }
+    if(!chalk){ g.strokeStyle=GOLD; g.beginPath(); g.arc(f.x,f.y,1.8,0,7); g.stroke(); }
+  }
+  for(const tr of trees){
+    const trunkC = chalk?CHALK:BARK, leafC = chalk?CHALK:MOSS;
+    stitchLine(g,tr.x,tr.y, tr.x, tr.y-52, trunkC, chalk?1.4:3.4, 7);
+    g.strokeStyle=leafC; g.lineWidth=chalk?1.2:2.2;
+    for(let i=0;i<9;i++){ const A=i/9*6.283;
+      g.beginPath(); g.arc(tr.x+Math.cos(A)*17, tr.y-64+Math.sin(A)*13, 11, 0, 5.2); g.stroke(); }
+  }
+  // pits: torn cloth
+  for(const p of pits){
+    if(chalk){
+      g.strokeStyle=CHALK; g.setLineDash([4,4]);
+      g.strokeRect(p.x,BAND_TOP,p.w,BAND_BOT-BAND_TOP); g.setLineDash([]);
+      continue;
+    }
+    g.fillStyle='#2f2a20';
+    g.beginPath();
+    g.moveTo(p.x,BAND_TOP);
+    for(let y=BAND_TOP;y<=BAND_BOT;y+=16) g.lineTo(p.x+Math.sin(y*.35+p.x)*6, y);
+    g.lineTo(p.x+p.w,BAND_BOT);
+    for(let y=BAND_BOT;y>=BAND_TOP;y-=16) g.lineTo(p.x+p.w+Math.sin(y*.4)*6, y);
+    g.closePath(); g.fill();
+    // frayed threads at edges
+    g.strokeStyle=LINEN_DD; g.lineWidth=1.6;
+    for(let y=BAND_TOP+8;y<BAND_BOT;y+=22){
+      g.beginPath(); g.moveTo(p.x+2,y); g.quadraticCurveTo(p.x+12,y+6,p.x+8,y+14); g.stroke();
+      g.beginPath(); g.moveTo(p.x+p.w-2,y+10); g.quadraticCurveTo(p.x+p.w-14,y+16,p.x+p.w-8,y+24); g.stroke();
+    }
+  }
+  // anchors: brass buttons
+  for(const a of anchors){
+    const c=chalk?CHALK:GOLD;
+    g.strokeStyle=c; g.lineWidth=2;
+    g.beginPath(); g.arc(a.x,a.y,8,0,7); g.stroke();
+    g.beginPath(); g.arc(a.x,a.y,4.5,0,7); g.stroke();
+    if(!chalk){ crossStitch(g,a.x,a.y,2.4,CHARCOAL,1.4); }
+  }
+  // moth-eaten holes: even the stitching is gone
+  if(!chalk) for(const h of holes){
+    g.fillStyle=LINEN; g.beginPath(); g.ellipse(h.x,h.y,h.r,h.r*0.7,0.4,0,7); g.fill();
+    g.strokeStyle=LINEN_DD; g.lineWidth=1.4;
+    g.beginPath(); g.ellipse(h.x,h.y,h.r,h.r*0.7,0.4,0,7); g.stroke();
+  }
+  // eaten-thin cloth
+  for(const dz of drains){
+    if(chalk){ g.strokeStyle=CHALK; g.setLineDash([5,6]);
+      g.beginPath(); g.ellipse(dz.x,dz.y,dz.rx,dz.ry,0,0,7); g.stroke(); g.setLineDash([]); continue; }
+    g.fillStyle='rgba(238,232,214,0.7)';
+    g.beginPath(); g.ellipse(dz.x,dz.y,dz.rx,dz.ry,0,0,7); g.fill();
+    g.strokeStyle=LINEN_DD; g.lineWidth=1.4;
+    for(let i=0;i<10;i++){ const A=i*0.63; g.beginPath();
+      g.arc(dz.x+Math.cos(A)*dz.rx*0.6, dz.y+Math.sin(A)*dz.ry*0.6, 3+(i%3)*2, 0,7); g.stroke(); }
+    chalkText(g,'eaten thin',dz.x,dz.y,12);
+  }
+  // steel pins
+  for(const pin of pins){
+    const c=chalk?CHALK:'#8d939c';
+    g.strokeStyle=c; g.lineWidth=3;
+    g.beginPath(); g.moveTo(pin.x,pin.y+14); g.lineTo(pin.x,pin.y-12); g.stroke();
+    g.beginPath(); g.arc(pin.x,pin.y-16,5,0,7);
+    if(chalk) g.stroke(); else { g.fillStyle='#8d939c'; g.fill(); }
+  }
+  // blackwork lace gates
+  for(const gt of gates){
+    const c = chalk? CHALK : MOSS_D;
+    if(gt.open){
+      stitchLine(g,gt.x,BAND_TOP-10,gt.x,BAND_TOP+30,c,2.4,7);
+      stitchLine(g,gt.x,BAND_BOT-30,gt.x,BAND_BOT+10,c,2.4,7);
+    } else {
+      stitchLine(g,gt.x,BAND_TOP-10,gt.x,BAND_BOT+10,c,3,7);
+      for(let y=BAND_TOP;y<BAND_BOT;y+=24){
+        stitchLine(g,gt.x-10,y,gt.x+10,y+18,c,1.8,6);
+        stitchLine(g,gt.x+10,y,gt.x-10,y+18,c,1.8,6);
+      }
+    }
+  }
+  // eyelets
+  for(const ey of eyelets){
+    const held=ey.heldT>0;
+    const c=chalk?CHALK:(held?GOLD_L:CHARCOAL);
+    g.strokeStyle=c; g.lineWidth=2.4;
+    g.beginPath(); g.arc(ey.x,ey.y,10,0,7); g.stroke();
+    g.beginPath(); g.arc(ey.x,ey.y,5,0,7); g.stroke();
+    if(held&&!chalk){ g.setLineDash([3,4]); g.beginPath(); g.arc(ey.x,ey.y,15,0,7); g.stroke(); g.setLineDash([]); }
+  }
+  // dye pots
+  for(const dp of dyepots){
+    if(chalk){ g.strokeStyle=CHALK; g.lineWidth=1.4; g.beginPath(); g.arc(dp.x,dp.y,11,0,7); g.stroke(); continue; }
+    satinCircle(g,dp.x,dp.y,9,dp.c);
+    g.strokeStyle=BARK; g.lineWidth=2.6; g.beginPath(); g.arc(dp.x,dp.y,12,0,7); g.stroke();
+  }
+  // sampler gaps
+  for(const gp of gaps){
+    const cc = gp.filled? (chalk?CHALK:gp.c) : (chalk?CHALK:'rgba(120,110,90,0.55)');
+    g.strokeStyle=cc; g.lineWidth=gp.filled?2:1.4;
+    for(let a=0;a<6;a++){ const A=a/6*6.283;
+      g.beginPath(); g.ellipse(gp.x+Math.cos(A)*6,gp.y+Math.sin(A)*6,4.5,2.4,A,0,7); g.stroke(); }
+    if(!chalk){
+      if(gp.filled) crossStitch(g,gp.x,gp.y,2.4,GOLD,1.4);
+      else satinCircle(g,gp.x,gp.y,3,gp.c);
+    }
+  }
+  // hints in chalk always
+  for(const h of hints) chalkText(g,h.t,h.x,h.y,13,'left');
+  // selvage gate
+  const gx=6240;
+  stitchLine(g,gx,BAND_TOP-30,gx,BAND_BOT+30, chalk?CHALK:GOLD, chalk?1.4:3.4, 8);
+  stitchLine(g,gx+16,BAND_TOP-30,gx+16,BAND_BOT+30, chalk?CHALK:GOLD, chalk?1.4:3.4, 8);
+  for(let y=BAND_TOP-20;y<BAND_BOT+30;y+=34) crossStitch(g,gx+8,y, 7, chalk?CHALK:GOLD_L, chalk?1.2:2.2);
+}
+
+function drawBridges(g){
+  for(const b of bridges){
+    stitchLine(g,b.x1,b.y-4,b.x2,b.y-4,GOLD,2.6,8);
+    stitchLine(g,b.x1,b.y+4,b.x2,b.y+4,GOLD,2.6,8);
+    for(let x=b.x1+8;x<b.x2;x+=16) stitchLine(g,x,b.y-5,x+4,b.y+5,GOLD_L,1.8,6);
+  }
+}
+
+function drawPlayer(g,p){
+  const bob=Math.sin(p.walk)*1.6;
+  const x=p.x, y=p.y+bob;
+  g.save();
+  if(p.inv>0 && Math.floor(time*14)%2===0) g.globalAlpha=0.45;
+  if(p.down){
+    // a loose pile of thread
+    g.strokeStyle=p.c1; g.lineWidth=2.2;
+    for(let i=0;i<4;i++){ g.beginPath(); g.arc(x+(i-1.5)*5, p.y+6, 6-i, 0.4, 5.6); g.stroke(); }
+    chalkText(g,'hold '+(mobile?'STITCH':((p===p1)?'K':'R'))+' close by to restitch',x,p.y-24,12);
+    if(p.reviveT>0){
+      g.strokeStyle=GOLD; g.lineWidth=3;
+      g.beginPath(); g.arc(x,p.y,16,-1.57,-1.57+p.reviveT/2.4*6.283); g.stroke();
+    }
+    g.restore(); return;
+  }
+  // legs
+  const lw=Math.sin(p.walk)*4;
+  stitchLine(g,x-3,y+2,x-3-lw*.5,y+13,p.c1,2.4,5);
+  stitchLine(g,x+3,y+2,x+3+lw*.5,y+13,p.c1,2.4,5);
+  // body
+  stitchLine(g,x,y-10,x,y+3,p.c1,3,5);
+  // arms + swing
+  if(p.swing>0){
+    const ax=x+p.fx*16, ay=y-6+p.fy*16;
+    stitchLine(g,x,y-6,ax,ay,p.c2,2.6,5);
+    g.strokeStyle=GOLD_L; g.lineWidth=2;
+    g.beginPath(); g.arc(x+p.fx*20,y-6+p.fy*20,10, Math.atan2(p.fy,p.fx)-1.1, Math.atan2(p.fy,p.fx)+1.1); g.stroke();
+  } else {
+    stitchLine(g,x,y-6,x-6,y+1,p.c2,2.4,5);
+    stitchLine(g,x,y-6,x+6,y+1,p.c2,2.4,5);
+  }
+  // head: satin stitch
+  satinCircle(g,x,y-16,6,p.c2);
+  if(p.dye) satinCircle(g,x+8,y-2,3.5,p.dye.c);
+  // hood / braid marker
+  if(p===p1){ g.strokeStyle=p.c1; g.lineWidth=2.4; g.beginPath(); g.arc(x,y-17,7.5,3.5,6.1); g.stroke(); }
+  else { stitchLine(g,x+5,y-14,x+9,y-4,p.c1,2.2,4); }
+  // channel glow
+  if(p.channel){ g.strokeStyle=GOLD; g.lineWidth=1.6; g.setLineDash([3,4]);
+    g.beginPath(); g.arc(x,y-6,20+Math.sin(time*6)*2,0,7); g.stroke(); g.setLineDash([]); }
+  g.restore();
+}
+
+function drawEnemy(g,e){
+  if(e.dead){
+    // unravel: a spiral of loose thread
+    const t=e.dead/0.6;
+    g.strokeStyle=MOTHGRY; g.lineWidth=2; g.globalAlpha=1-t;
+    g.beginPath();
+    for(let a=0;a<14;a++){ const A=a*.7+t*6, r=3+a*1.4*(1-t*.4);
+      g.lineTo(e.x+Math.cos(A)*r, e.y+Math.sin(A)*r); }
+    g.stroke(); g.globalAlpha=1; return;
+  }
+  const flash=e.hitT>0;
+  if(e.kind==='larva'){
+    const c=flash?'#fff':MOTHGRY_D;
+    for(let i=0;i<4;i++){
+      const ox=Math.sin(e.t*6+i)*2;
+      satinCircle(g,e.x-9+i*6+ox, e.y+Math.sin(e.t*8+i*1.4)*2, 4.6-i*.5, i? MOTHGRY : c);
+    }
+    g.fillStyle=CHARCOAL; g.fillRect(e.x-11,e.y-2,1.6,1.6); 
+  } else {
+    const c=flash?'#fff':MOTHGRY;
+    const flap=Math.sin(e.t*14)*0.7;
+    g.strokeStyle=c; g.lineWidth=2;
+    g.beginPath(); g.ellipse(e.x-7,e.y,8,4.5+flap*3,-0.5,0,7); g.stroke();
+    g.beginPath(); g.ellipse(e.x+7,e.y,8,4.5-flap*3,0.5,0,7); g.stroke();
+    satinCircle(g,e.x,e.y,3,MOTHGRY_D);
+    stitchLine(g,e.x-1,e.y-4,e.x-4,e.y-9,c,1.4,3);
+    stitchLine(g,e.x+1,e.y-4,e.x+4,e.y-9,c,1.4,3);
+    if(e.kind==='thief'){ g.strokeStyle=GOLD; g.lineWidth=1.6;
+      g.beginPath(); g.arc(e.x,e.y+2,6,0,7); g.stroke();
+      if(e.carry>0) satinCircle(g,e.x,e.y+9,2.6,GOLD_L); }
+  }
+}
+
+function drawGnarl(g){
+  const e=gnarl;
+  if(e.dead){
+    const t=Math.min(1,e.dead/1.4);
+    g.strokeStyle=CHARCOAL; g.lineWidth=3; g.globalAlpha=1-t;
+    for(let i=0;i<6;i++){
+      g.beginPath();
+      g.moveTo(e.x,e.y);
+      g.quadraticCurveTo(e.x+(i-3)*30, e.y-40-t*60, e.x+(i-3)*60*(1+t), e.y+50+t*80);
+      g.stroke();
+    }
+    g.globalAlpha=1; return;
+  }
+  const flash=e.hitT>0;
+  // tangled mass: overlapping loops, denser with remaining hp
+  g.strokeStyle=flash?'#fff':CHARCOAL; g.lineWidth=3.4;
+  const R=30+e.hp*3;
+  for(let i=0;i<6+e.hp*2;i++){
+    const A=i*2.1+e.t*.7, r=R*(.5+((i*37)%10)/14);
+    g.beginPath();
+    g.ellipse(e.x+Math.cos(A)*8, e.y+Math.sin(A*1.3)*8, r, r*.55, A, 0.3, 5.6);
+    g.stroke();
+  }
+  // stolen colored threads inside
+  [INDIGO_L,MADDER_L,MOSS,GOLD].forEach((c,i)=>{
+    g.strokeStyle=c; g.lineWidth=2.2;
+    g.beginPath(); g.ellipse(e.x, e.y, R*.5+i*4, R*.3, e.t*.5+i, 0.5, 4.5); g.stroke();
+  });
+  // eyes: two black french knots
+  g.fillStyle='#111'; 
+  g.beginPath(); g.arc(e.x-8,e.y-6,3.2,0,7); g.fill();
+  g.beginPath(); g.arc(e.x+9,e.y-4,3.2,0,7); g.fill();
+  // loose end
+  const le=looseEndPos();
+  const pulse=1+Math.sin(time*7)*.2;
+  g.strokeStyle=GOLD; g.lineWidth=3;
+  g.beginPath(); g.moveTo(e.x,e.y); g.quadraticCurveTo((e.x+le.x)/2, (e.y+le.y)/2-14, le.x,le.y); g.stroke();
+  satinCircle(g,le.x,le.y,6*pulse,GOLD_L);
+  if(e.looseT>0){ g.strokeStyle='#fff'; g.beginPath(); g.arc(le.x,le.y,12,0,7); g.stroke(); }
+  chalkText(g,'the loose end',le.x,le.y-16,11);
+}
+
+function drawGlutton(g){
+  const e=glutton;
+  if(e.dead){
+    const t=Math.min(1,e.dead/1.4);
+    g.globalAlpha=1-t;
+    [INDIGO_L,MADDER_L,MOSS,GOLD].forEach((c,i)=>{
+      g.strokeStyle=c; g.lineWidth=3;
+      g.beginPath(); g.moveTo(e.x,e.y);
+      g.quadraticCurveTo(e.x+(i-1.5)*60, e.y-60-t*90, e.x+(i-1.5)*130*(1+t), e.y+40+t*120); g.stroke();
+    });
+    g.globalAlpha=1; return;
+  }
+  const flash=e.hitT>0, rest=e.phase==='rest';
+  const flap=Math.sin(e.t*(e.phase==='inhale'?22:9))*0.8;
+  g.strokeStyle=flash?'#fff':MOTHGRY; g.lineWidth=3;
+  g.beginPath(); g.ellipse(e.x-30,e.y-8,34,16+flap*10,-0.5,0,7); g.stroke();
+  g.beginPath(); g.ellipse(e.x+30,e.y-8,34,16-flap*10,0.5,0,7); g.stroke();
+  satinCircle(g,e.x,e.y+6,26, flash?'#fff':MOTHGRY_D);
+  [INDIGO_L,MADDER_L,MOSS,GOLD].forEach((c,i)=>{
+    g.strokeStyle=c; g.lineWidth=2.4;
+    g.beginPath(); g.arc(e.x,e.y+6,20-i*4.5, 0.4+e.t*0.4+i, 2.6+e.t*0.4+i); g.stroke();
+  });
+  const seamC = rest? (Math.floor(time*6)%2===0?'#fff':GOLD_L) : CHARCOAL;
+  stitchLine(g,e.x-16,e.y+18,e.x+16,e.y+22, seamC, rest?3.4:2, 5);
+  g.fillStyle='#111';
+  g.beginPath(); g.arc(e.x-8,e.y-14,3.4,0,7); g.fill();
+  g.beginPath(); g.arc(e.x+8,e.y-14,3.4,0,7); g.fill();
+  if(e.phase==='inhale'){
+    const r=95-(e.pt/3.0)*62;
+    g.strokeStyle='rgba(59,52,40,0.5)'; g.setLineDash([6,7]); g.lineWidth=2;
+    g.beginPath(); g.arc(e.x,e.y,r,0,7); g.stroke(); g.setLineDash([]);
+    chalkText(g,'it breathes in · hold to a pin',e.x,e.y-64,12);
+  }
+  if(rest) chalkText(g,'strike the seam',e.x,e.y+44,12);
+}
+
+function drawCocoon(g){
+  const c=cocoon;
+  const R=34+c.layers*7;
+  g.strokeStyle='rgba(59,52,40,0.35)'; g.setLineDash([4,6]); g.lineWidth=1.4;
+  g.beginPath(); g.arc(c.x,c.y,105,0,7); g.stroke(); g.setLineDash([]);
+  if(!c.done) chalkText(g,'walk the thread · wind her free',c.x,c.y-R-20,12);
+  if(!c.done && c.layers<=2){
+    satinCircle(g,c.x,c.y-14,7,CHARCOAL);
+    stitchLine(g,c.x,c.y-6,c.x,c.y+16,CHARCOAL,2.6,5);
+  }
+  const cols=[MOTHGRY,INDIGO_L,MADDER_L,MOSS,GOLD_L,MOTHGRY_D];
+  for(let i=0;i<c.layers;i++){
+    g.strokeStyle=cols[i%cols.length]; g.lineWidth=3;
+    const r=R-i*6;
+    for(let k=0;k<3;k++){
+      g.beginPath(); g.ellipse(c.x,c.y, r, r*0.72, i*0.7+k*1.05+time*0.05, 0.2,6.1); g.stroke();
+    }
+  }
+  if(c.done){
+    satinCircle(g,c.x,c.y-22,7,CHARCOAL);
+    stitchLine(g,c.x,c.y-14,c.x,c.y+14,CHARCOAL,3,5);
+    stitchLine(g,c.x,c.y-8,c.x-10,c.y+2,CHARCOAL,2.2,4);
+    stitchLine(g,c.x,c.y-8,c.x+12,c.y-2,CHARCOAL,2.2,4);
+    stitchLine(g,c.x+12,c.y-2,c.x+26,c.y-14,GOLD,2.2,4);
+    chalkText(g,'the Seamstress',c.x,c.y+34,12);
+  } else {
+    g.strokeStyle=GOLD; g.lineWidth=3;
+    g.beginPath(); g.arc(c.x,c.y,R+8,-1.57,-1.57+(c.prog/7.5)*6.283); g.stroke();
+  }
+}
+
+function drawLoom(g){
+  const L=loom, w=70, h=95;
+  stitchLine(g,L.x-w,L.y-h,L.x-w,L.y+h,BARK,4,8);
+  stitchLine(g,L.x+w,L.y-h,L.x+w,L.y+h,BARK,4,8);
+  stitchLine(g,L.x-w-8,L.y-h,L.x+w+8,L.y-h,BARK,4,8);
+  stitchLine(g,L.x-w-8,L.y+h,L.x+w+8,L.y+h,BARK,4,8);
+  g.strokeStyle='rgba(184,145,47,0.6)'; g.lineWidth=1.2;
+  for(let x=L.x-w+10;x<L.x+w;x+=9){ g.beginPath(); g.moveTo(x,L.y-h+6); g.lineTo(x,L.y+h-6); g.stroke(); }
+  const frac=Math.max(0,L.hp/L.max);
+  const clothTop=L.y+h-10-(2*h-30)*frac*0.85;
+  const cols=[INDIGO_L,MADDER_L,MOSS,GOLD_L];
+  let i=0;
+  for(let y=L.y+h-12;y>clothTop;y-=6){ stitchLine(g,L.x-w+8,y,L.x+w-8,y,cols[i++%4],2.6,7); }
+  g.strokeStyle=LINEN_DD; g.lineWidth=1.4;
+  for(let x=L.x-w+12;x<L.x+w-8;x+=16){ g.beginPath(); g.moveTo(x,clothTop); g.quadraticCurveTo(x+5,clothTop-8,x+9,clothTop-3); g.stroke(); }
+  chalkText(g,'THE LOOM OF DAYS',L.x,L.y-h-14,12);
+}
+function drawSeamstress(g){
+  const s=sm; const nx=s.x+12+Math.sin(s.t*6)*3, ny=s.y-4+Math.cos(s.t*6)*3;
+  satinCircle(g,s.x,s.y-22,7,CHARCOAL);
+  stitchLine(g,s.x,s.y-14,s.x,s.y+14,CHARCOAL,3,5);
+  stitchLine(g,s.x,s.y-8,s.x-10,s.y+2,CHARCOAL,2.2,4);
+  stitchLine(g,s.x,s.y-8,nx,ny,CHARCOAL,2.2,4);
+  stitchLine(g,nx,ny,nx+12,ny-10,GOLD,2.2,4);
+  for(const f of s.fx){ g.globalAlpha=Math.min(1,f.t*2); stitchLine(g,f.x1,f.y1,f.x2,f.y2,GOLD_L,2.6,10); g.globalAlpha=1; }
+  chalkText(g,'the Seamstress',s.x,s.y+32,11);
+}
+function drawKing(g){
+  const k=king;
+  if(k.dead){ const t=Math.min(1,k.dead/1.6); g.globalAlpha=1-t;
+    g.strokeStyle=MOTHGRY; g.lineWidth=2;
+    for(let i=0;i<12;i++){ const A=i*0.52+t*3; g.beginPath();
+      g.ellipse(k.x+Math.cos(A)*(20+t*160), k.y+Math.sin(A)*(14+t*120), 7,4, A,0,7); g.stroke(); }
+    g.globalAlpha=1; return; }
+  const flash=k.hitT>0, pinned=k.phase==='pinned';
+  const flap=Math.sin(k.t*(k.phase==='swoop'?20:8))*(pinned?0.15:0.9);
+  const c=flash?'#fff':MOTHGRY_D;
+  g.strokeStyle=c; g.lineWidth=3.4;
+  g.beginPath(); g.ellipse(k.x-38,k.y-6,44,20+flap*12,-0.45,0,7); g.stroke();
+  g.beginPath(); g.ellipse(k.x+38,k.y-6,44,20-flap*12,0.45,0,7); g.stroke();
+  satinCircle(g,k.x,k.y,15,c);
+  g.strokeStyle=GOLD; g.lineWidth=2.2;
+  for(let i=-2;i<=2;i++){ g.beginPath(); g.moveTo(k.x+i*6,k.y-16); g.lineTo(k.x+i*7,k.y-26); g.stroke(); }
+  g.fillStyle='#111';
+  g.beginPath(); g.arc(k.x-6,k.y-4,3,0,7); g.fill();
+  g.beginPath(); g.arc(k.x+6,k.y-4,3,0,7); g.fill();
+  if(pinned){ stitchLine(g,k.x+30,k.y-40,k.x+52,k.y+6,GOLD,3,6);
+    chalkText(g,'pinned · strike',k.x,k.y-52,12); }
+  if(k.phase==='swoop') chalkText(g,'it dives for the Loom',k.x,k.y-46,11);
+}
+
+function drawBond(g){
+  // the thread that ties Warp to Weft: slack when close, taut when apart
+  const d=dist(p1,p2), maxd=VW*0.9;
+  const sag=clamp((1-d/maxd),0,1)*60+6;
+  const mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2+sag;
+  g.strokeStyle='rgba(59,52,40,0.5)'; g.lineWidth=1.6;
+  g.setLineDash([5,4]);
+  g.beginPath(); g.moveTo(p1.x,p1.y-4); g.quadraticCurveTo(mx,my,p2.x,p2.y-4); g.stroke();
+  g.setLineDash([]);
+}
+
+function drawHUD(g){
+  for(const [p,side] of [[p1,0],[p2,1]]){
+    const x = side? VW-208 : 22, y=16;
+    // bobbin
+    g.strokeStyle=BARK; g.lineWidth=3;
+    g.strokeRect(x,y+2,10,20);
+    g.strokeStyle=p.c1; g.lineWidth=2;
+    const wraps=Math.ceil(p.hp/12);
+    for(let i=0;i<wraps;i++){ g.beginPath(); g.moveTo(x+1,y+20-i*2); g.lineTo(x+9,y+19-i*2); g.stroke(); }
+    // name + thread bar as a stitched line that frays
+    g.font='700 13px Georgia'; g.fillStyle=CHARCOAL; g.textAlign='left';
+    g.fillText(p.name, x+18, y+12);
+    const bw=140, frac=p.hp/p.maxhp;
+    stitchLine(g,x+18,y+22,x+18+bw*frac,y+22,p.c1,3,7);
+    if(frac<1){
+      // frayed tail
+      g.strokeStyle=p.c2; g.lineWidth=1.4;
+      const fx=x+18+bw*frac;
+      g.beginPath(); g.moveTo(fx,y+22); g.quadraticCurveTo(fx+8,y+18,fx+13,y+23); g.stroke();
+      g.beginPath(); g.moveTo(fx,y+22); g.quadraticCurveTo(fx+7,y+27,fx+12,y+24); g.stroke();
+    }
+  }
+  g.font='11px Georgia'; g.fillStyle='rgba(59,52,40,0.65)'; g.textAlign='center';
+  g.fillText(mobile? 'SOLO · Fray follows your lead' : (solo?'SOLO':'CO-OP')+' · T toggles solo · M mutes', VW/2, 20);
+  if(loom && defense.active && !bossDone){
+    g.font='700 12px Georgia'; g.fillStyle=CHARCOAL;
+    g.fillText('THE LOOM', VW/2, 38);
+    const bw=160, frac=Math.max(0,loom.hp/loom.max);
+    stitchLine(g,VW/2-bw/2,46,VW/2-bw/2+bw*frac,46,GOLD,3,7);
+    if(frac<1){ g.strokeStyle=GOLD_L; g.lineWidth=1.4;
+      const fx=VW/2-bw/2+bw*frac;
+      g.beginPath(); g.moveTo(fx,46); g.quadraticCurveTo(fx+8,42,fx+13,47); g.stroke(); }
+  }
+}
+
+function drawTouchControls(g){
+  g.save();
+  // joystick
+  const jx=joy.active?joy.bx:120, jy=joy.active?joy.by:VH-110;
+  g.globalAlpha=joy.active?0.85:0.4;
+  g.strokeStyle=CHARCOAL; g.lineWidth=2; g.setLineDash([5,5]);
+  g.beginPath(); g.arc(jx,jy,52,0,7); g.stroke(); g.setLineDash([]);
+  satinCircle(g,jx+joy.dx,jy+joy.dy,14,INDIGO_L);
+  // buttons
+  for(const b of [btnStrike,btnStitch]){
+    g.globalAlpha=b.on?0.95:0.45;
+    g.strokeStyle=b===btnStrike?MADDER:GOLD; g.lineWidth=3;
+    g.beginPath(); g.arc(b.x,b.y,b.r,0,7); g.stroke();
+    g.setLineDash([4,5]); g.lineWidth=1.6;
+    g.beginPath(); g.arc(b.x,b.y,b.r-7,0,7); g.stroke(); g.setLineDash([]);
+    crossStitch(g,b.x,b.y-8,b===btnStrike?9:7, b===btnStrike?MADDER:GOLD, 2.4);
+    g.font='700 12px Georgia'; g.fillStyle=CHARCOAL; g.textAlign='center';
+    g.fillText(b.label,b.x,b.y+b.r-14);
+  }
+  g.restore(); g.globalAlpha=1;
+}
+
+function drawBanner(g){
+  if(!bannerCur) return;
+  const t=bannerT;
+  const totalChars=bannerCur.lines.join('').length;
+  const shown=Math.floor(t*26);
+  g.save();
+  const bw=Math.min(760, 130+Math.max(...bannerCur.lines.map(l=>l.length))*11.5);
+  const bh=34+bannerCur.lines.length*26;
+  const bx=VW/2-bw/2, by=64;
+  g.fillStyle='rgba(231,221,196,0.92)';
+  g.fillRect(bx,by,bw,bh);
+  stitchLine(g,bx,by,bx+bw,by,MADDER,2.4,8);
+  stitchLine(g,bx,by+bh,bx+bw,by+bh,MADDER,2.4,8);
+  stitchLine(g,bx,by,bx,by+bh,MADDER,2.4,8);
+  stitchLine(g,bx+bw,by,bx+bw,by+bh,MADDER,2.4,8);
+  crossStitch(g,bx+12,by+12,4,GOLD,1.8); crossStitch(g,bx+bw-12,by+12,4,GOLD,1.8);
+  crossStitch(g,bx+12,by+bh-12,4,GOLD,1.8); crossStitch(g,bx+bw-12,by+bh-12,4,GOLD,1.8);
+  g.fillStyle=CHARCOAL; g.textAlign='center';
+  let used=0;
+  bannerCur.lines.forEach((ln,i)=>{
+    const take=clamp(shown-used,0,ln.length); used+=ln.length;
+    g.font=(i===0&&ln===ln.toUpperCase()? '700 19px Georgia':'italic 17px Georgia');
+    g.fillText(ln.slice(0,take), VW/2, by+30+i*26);
+  });
+  g.restore();
+}
+
+function frame(g){
+  // cross-stitch border frame, screen space
+  g.fillStyle='rgba(59,52,40,0.06)';
+  g.fillRect(0,0,VW,10); g.fillRect(0,VH-10,VW,10);
+  for(let x=14;x<VW;x+=22){ crossStitch(g,x,5,3.4,MADDER,1.6); crossStitch(g,x,VH-5,3.4,INDIGO,1.6); }
+}
+
+const tmp=document.createElement('canvas'); tmp.width=VW; tmp.height=VH;
+const tg=tmp.getContext('2d');
+
+function render(){
+  const sx=(Math.random()-0.5)*shake, sy=(Math.random()-0.5)*shake;
+  ctx.save(); ctx.translate(sx,sy);
+  // linen ground
+  ctx.fillStyle=ctx.createPattern(linenTile,'repeat');
+  ctx.save(); ctx.translate(-camX%72,0); ctx.fillRect(-72,0,VW+144,VH); ctx.restore();
+
+  if(state==='title'){ ctx.restore(); renderTitle(); return; }
+
+  // 1) chalk pass: the Seamstress's plan, always faintly visible
+  ctx.save(); ctx.translate(-camX,0);
+  drawDecor(ctx,'chalk');
+  ctx.restore();
+
+  // 2) stitched pass, masked by what the players have walked into being
+  tg.clearRect(0,0,VW,VH);
+  tg.save(); tg.translate(-camX,0);
+  drawDecor(tg,'stitch');
+  drawBridges(tg);
+  tg.restore();
+  tg.globalCompositeOperation='destination-in';
+  tg.drawImage(maskC, camX/SCALE,0, VW/SCALE,VH/SCALE, 0,0, VW,VH);
+  tg.globalCompositeOperation='source-over';
+  ctx.drawImage(tmp,0,0);
+  if(panel===2){ ctx.fillStyle='rgba(238,233,216,0.16)'; ctx.fillRect(0,0,VW,VH); }
+
+  // 3) living things, always stitched
+  ctx.save(); ctx.translate(-camX,0);
+  for(const p of players){
+    for(const s of p.trail){
+      ctx.globalAlpha=clamp(s.t/5,0,1)*0.5;
+      crossStitch(ctx,s.x,s.y+14,2.2,p.c2,1.4);
+    }
+    ctx.globalAlpha=1;
+  }
+  drawBond(ctx);
+  if(gateOn){
+    for(const gx of [ARENA.a, ARENA.b]){
+      stitchLine(ctx,gx,BAND_TOP-10,gx,BAND_BOT+10,MOSS_D,3.4,7);
+      for(let y=BAND_TOP;y<BAND_BOT;y+=26) crossStitch(ctx,gx,y,5,MOSS,2);
+    }
+  }
+  if(loom) drawLoom(ctx);
+  if(sm) drawSeamstress(ctx);
+  for(const s of skeins){
+    satinCircle(ctx,s.x,s.y,7,GOLD);
+    stitchLine(ctx,s.x-8,s.y-4,s.x+8,s.y+4,INDIGO_L,1.6,4);
+    stitchLine(ctx,s.x-8,s.y+4,s.x+8,s.y-4,INDIGO_L,1.6,4);
+  }
+  for(const e of enemies) drawEnemy(ctx,e);
+  if(gnarl) drawGnarl(ctx);
+  if(glutton) drawGlutton(ctx);
+  if(cocoon) drawCocoon(ctx);
+  if(king) drawKing(ctx);
+  drawPlayer(ctx,p1); drawPlayer(ctx,p2);
+  for(const c of crossFx){ ctx.globalAlpha=c.t*2; crossStitch(ctx,c.x,c.y,14*(1-c.t),GOLD,3); ctx.globalAlpha=1; }
+  for(const f of floaters){
+    ctx.globalAlpha=clamp(f.t,0,1);
+    ctx.font='italic 13px Georgia'; ctx.fillStyle=f.c; ctx.textAlign='center';
+    ctx.fillText(f.txt,f.x,f.y); ctx.globalAlpha=1;
+  }
+  ctx.restore();
+
+  drawHUD(ctx); drawBanner(ctx); frame(ctx);
+  if(mobile) drawTouchControls(ctx);
+  if(toastMsg){
+    ctx.font='italic 14px Georgia'; ctx.fillStyle=CHARCOAL; ctx.textAlign='center';
+    ctx.fillText(toastMsg, VW/2, VH-26);
+  }
+  ctx.restore();
+
+  if(state==='end') renderEnd();
+}
+
+function renderTitle(){
+  ctx.fillStyle=ctx.createPattern(linenTile,'repeat'); ctx.fillRect(0,0,VW,VH);
+  frame(ctx);
+  ctx.textAlign='center';
+  ctx.font='700 54px Georgia';
+  const w1=ctx.measureText('THIMBLE').width, w2=ctx.measureText('FRAY').width;
+  ctx.font='400 40px Georgia';
+  const wa=ctx.measureText('&').width;
+  const tgap=18, ttotal=w1+tgap+wa+tgap+w2;
+  let tx=VW/2-ttotal/2;
+  ctx.textAlign='left';
+  ctx.font='700 54px Georgia'; ctx.fillStyle=INDIGO; ctx.fillText('THIMBLE', tx, 200); tx+=w1+tgap;
+  ctx.font='400 40px Georgia'; ctx.fillStyle=CHARCOAL; ctx.fillText('&', tx, 196); tx+=wa+tgap;
+  ctx.font='700 54px Georgia'; ctx.fillStyle=MADDER; ctx.fillText('FRAY', tx, 200);
+  ctx.textAlign='center';
+  stitchLine(ctx, VW/2-280, 222, VW/2+280, 222, GOLD, 3, 9);
+  ctx.fillStyle=CHARCOAL; ctx.font='italic 20px Georgia';
+  ctx.fillText('The First Tapestry', VW/2, 258);
+  ctx.font='15px Georgia'; ctx.fillStyle='rgba(59,52,40,0.85)';
+  const rows= mobile? [
+    'A quest embroidered on linen.',
+    '',
+    'Left side of the screen: touch and drag to walk.',
+    'STRIKE unpicks moths. STITCH mends, casts bridges,',
+    'and restitches the fallen. Everything costs thread.',
+    'Thread is life.',
+    '',
+    'Fray, your partner thread, follows your lead.',
+    'Turn the phone sideways for the widest view.',
+  ] : [
+    'A quest embroidered on linen, for two players at one keyboard.',
+    '',
+    'THIMBLE · WASD moves · F strikes · R stitches',
+    'FRAY · Arrows move · L strikes · K stitches',
+    '',
+    'Stitching mends your partner, casts bridges from brass buttons,',
+    'and restitches the fallen. Everything costs thread. Thread is life.',
+    '',
+    'Playing alone? Press T and Fray will follow your lead.',
+  ];
+  rows.forEach((r,i)=> ctx.fillText(r, VW/2, 310+i*24));
+  if(Math.floor(time*1.6)%2===0){ ctx.font='700 17px Georgia'; ctx.fillStyle=MADDER;
+    ctx.fillText(mobile?'tap the cloth to take up the thread':'press Enter to take up the thread', VW/2, 552); }
+  for(let i=0;i<8;i++) crossStitch(ctx, VW/2-140+i*40, 528, 5, i%2?INDIGO_L:MADDER_L, 2);
+}
+
+function renderEnd(){
+  ctx.fillStyle='rgba(231,221,196,0.9)'; ctx.fillRect(0,0,VW,VH);
+  frame(ctx); ctx.textAlign='center';
+  ctx.fillStyle=CHARCOAL; ctx.font='700 34px Georgia';
+  ctx.fillText('THE FIRST TAPESTRY IS COMPLETE', VW/2, 170);
+  stitchLine(ctx, VW/2-260, 190, VW/2+260, 190, GOLD, 3, 9);
+  ctx.font='italic 18px Georgia';
+  const lines=[
+    'The Loom holds. The Court is scattered.',
+    'She stitches for three days without stopping,',
+    'and where the blank was, color comes back like morning.',
+    'In the border of the finished cloth: two small figures,',
+    'stitched tighter than any thread in it.',
+  ];
+  lines.forEach((l,i)=>ctx.fillText(l, VW/2, 240+i*30));
+  ctx.font='15px Georgia'; ctx.fillStyle='rgba(59,52,40,0.8)';
+  ctx.fillText('enemies unpicked: '+stats.unpicked+'   ·   bridges cast: '+stats.cast+'   ·   thread spent: '+stats.spent+'   ·   thread mended: '+Math.round(stats.mended), VW/2, 400);
+  if(Math.floor(time*1.6)%2===0){ ctx.font='700 16px Georgia'; ctx.fillStyle=MADDER;
+    ctx.fillText(mobile?'tap to stitch it again':'press Enter to stitch it again', VW/2, 470); }
+}
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.033,(now-last)/1000); last=now;
+  time+=0; // time advanced in update during play; tick here for menus
+  if(state==='play') update(dt); else time+=dt;
+  musicTick();
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
